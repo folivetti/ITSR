@@ -1,0 +1,4 @@
+#!/bin/bash
+cd src
+ghc -o ../symtree --make SymTree.hs -O2 -odir tmp -hidir tmp  -threaded -prof -fprof-auto
+cd ..
