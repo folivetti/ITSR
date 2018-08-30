@@ -4,20 +4,7 @@
 from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV, LassoLarsCV, ElasticNetCV
 from sklearn.base import BaseEstimator, RegressorMixin
 import numpy as np
-from numba import jit, autojit, njit, prange          # import the decorator
 
-''' 
-@njit(parallel=True)
-def calcInteraction(X, net):
-  H = np.zeros((X.shape[0], net.shape[0]))
-  for i in prange(X.shape[0]):
-    for j in range(net.shape[0]):      
-      if np.any(X[i,:]==0):
-        H[i,j] = 0.0
-      else:
-        H[i,j] = np.prod(X[i,:]**net[j,:])
-  return H
-'''
 
 class ITELM(BaseEstimator, RegressorMixin):
     """Interaction-Transformation Extreme Machine Learning algorithm"""
