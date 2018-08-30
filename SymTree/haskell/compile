@@ -1,4 +1,4 @@
 #!/bin/bash
 cd src
-ghc -o ../symtree --make SymTree.hs -O2 -odir tmp -hidir tmp
+ghc -o ../symtree --make SymTree.hs -O2 -optc-O3 -optc-ffast-math -fasm -optc-march=native -threaded -odir tmp -hidir tmp
 cd ..

@@ -14,6 +14,7 @@ Greedy Tree Search for Symbolic Regression (SymTree).
 
 module Eval where
 
+import Prelude hiding ((<>))
 import Numeric.LinearAlgebra
 import qualified Data.Set as Set
 
@@ -86,10 +87,14 @@ evalExpr terms points = calcMSE x y
 
 solveLR :: Terms -> DataPoints -> Coefs
 -- solve a linear regression given an expression
-solveLR terms points = linearSolveSVD genX genY
+solveLR terms points = solveRidge genX genY -- linearSolveSVD
   where
     genX       = transformData terms (fst points)
     genY       = snd points
+
+--    genX'      = transformData terms (fst points)
+--    genX       = subMatrix (0, 0) (rows genX', cols genX' - 1) genX'
+--    genY       = subMatrix (0, cols genX' - 1) (rows genX', 1) genX'
 
 solveRidge :: Matrix Double -> Matrix Double -> Matrix Double
 -- Ridge regression, just testing...
@@ -97,20 +102,24 @@ solveRidge a b = oA <\> oB
   where
    mu = 0.1
 
-   oA = (a <> (tr a)) + (mu * (ident $ rows a))
-   oB = a <> (tr b)
+   a' = tr a
+   b' = tr b
+   oA = (a' <> (tr a')) + (mu * (ident $ rows a'))
+   oB = a' <> (tr b')
+
 
 safeLinearSolver :: X -> Y -> Maybe Coefs
 -- safe linear regression that returns Nothing if X contains NaN
 safeLinearSolver x y
     | anyNanInf = Nothing
-    | otherwise = Just (linearSolveSVD x y) -- linearSolveSVD
+    | otherwise = Just $ solveRidge x y -- linearSolveSVD
       where
         anyNanInf = anyNan || anyInf
         anyNan    = sumX /= sumX
         anyInf    = countInfs > 0
         sumX      = sumElements x
         countInfs = length $ find (==inf) (abs x)
+
       
 calcMSE :: X -> Y -> Double
 -- calculates Mean Squared Error
@@ -118,16 +127,21 @@ calcMSE x y = case linearReg  of
     Nothing -> inf
     Just coefs  -> (sumSq coefs) / npoints
     where
-      linearReg   = safeLinearSolver trainX trainY
+      linearReg   = safeLinearSolver trainX trainY -- safeLinearSolver
       sumSq coefs = sumElements $ err coefs ^ 2
       npoints     = fromIntegral $ rows x
       
       err coefs   = fhat coefs - testY
       fhat coefs  = testX <> coefs
 
+--      trainX      = subMatrix (0, 0) (halfX, cols x - 1) x
+--      trainY      = subMatrix (0, cols x - 1) (halfX, 1) x
+--      testX       = subMatrix (halfX, 0) (halfX, cols x - 1) x
+--      testY       = subMatrix (halfX, cols x - 1) (halfX, 1) x          
+
       trainX      = subMatrix (0, 0) (halfX, cols x) x
       trainY      = subMatrix (0, 0) (halfY, cols y) y
       testX       = subMatrix (halfX, 0) (halfX, cols x) x
-      testY       = subMatrix (halfY, 0) (halfY, cols y) y     
+      testY       = subMatrix (halfY, 0) (halfY, cols y) y          
       halfX       = (rows x) `div` 2
       halfY       = (rows y) `div` 2

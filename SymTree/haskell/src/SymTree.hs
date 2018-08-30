@@ -20,6 +20,7 @@ thrArg      :  used to remove terms with coefficient smaller than this value
 
 module Main where
 
+import Prelude hiding ((<>))
 import System.Environment
 import Text.Printf
 import Numeric.LinearAlgebra
@@ -51,7 +52,7 @@ exprToStr terms (bias:coefs) thr
     | otherwise  = exprStr
   where
     exprStr     = List.intercalate " + " formatExpr
-    formatExpr = [printf "%0.2f*%s(%s)" c f p | (c, f, p) <- names]    
+    formatExpr = [printf "%0.6f*%s(%s)" c f p | (c, f, p) <- names]    
     names      = [(coef, (funName f), (polyToStr p)) | ((p,f), coef) <- zExpr]
     zExpr      = zip (Set.toList terms) coefs
 
@@ -59,8 +60,9 @@ main = do
 
   args <- getArgs
   case args of
-    [fName, intStepsArg, invStepsArg, tranStepsArg, thrArg] -> do
+    [fName, fTest, intStepsArg, invStepsArg, tranStepsArg, thrArg] -> do
         dat <- loadMatrix fName
+        tst <- loadMatrix fTest
 
         let
           -- arguments parsing
@@ -71,6 +73,7 @@ main = do
 
           -- create data points
           dataPts = getDataPoints dat
+          testPts = getDataPoints tst
 
           -- execute main algorithm
           bestExpr = runSymTree dataPts (Params nInter nInv nTran thr)
@@ -81,9 +84,20 @@ main = do
           bestCoefs           = solveLR bestTerms dataPts
           listCoefs           = (toLists (tr bestCoefs)) !! 0
           nterms              = show (length (find (>thr) (abs bestCoefs)))
+          
+          transTest = transformData bestTerms (fst testPts)
+          fhat      = transTest <> bestCoefs
+          err       = fhat - (snd testPts)
+          sumSq     = sumElements $ err ^ 2
+          sumAbs    = sumElements $ abs err
+          mse       = sumSq  / (fromIntegral $ rows (fst testPts))
+          mae       = sumAbs / (fromIntegral $ rows (fst testPts))
 
         printf "\nMSE: %e, nterms: %s\nFinal expression: " bestMSE nterms
         print (exprToStr bestTerms listCoefs thr)
         printf "\n"
+        
+        printf "\nMSE test data: %e\n" (sqrt mse)
+        printf "\nMAE test data: %.4f\n" mae
   
-    _ -> putStrLn "Usage: ./symreg interactionsSteps inverseSteps transformationSteps thr"
+    _ -> putStrLn "Usage: ./symreg trainFile testFile interactionsSteps inverseSteps transformationSteps thr"

@@ -166,14 +166,15 @@ iterExpansion :: ([Expr] -> [Expr]) -> [Expr] -> Tabu -> Int -> ([Expr], Tabu)
 -- expand the current expression list and returns a new 
 -- expression list with an updated tabu list
 iterExpansion expand exprs tabu iter
-    | (iter == 0) || (bestExprMSE < 1e-20) || (null newExprs) = (exprs, tabu)
+    | (iter == 0) || (bestExprMSE < 1e-20) || (bestExprMSE < bestNewExprMSE) || (null newExprs) = (exprs, tabu)
     | otherwise = iterExpansion expand newExprs newTabu newIter
       where
         newTabu  = Set.union tabu newTabuList
         newTabuList = Set.fromList [getTerms expr | expr <- newExprs]
         newExprs = [expr | expr <- expand exprs, Set.notMember (getTerms expr) tabu]
         newIter  = iter - 1
-        bestExprMSE = getMSE $ getBestExpr exprs
+        bestExprMSE    = getMSE $ getBestExpr exprs
+        bestNewExprMSE = getMSE $ getBestExpr newExprs
 
 
 runSymTree :: DataPoints -> Params -> Expr
