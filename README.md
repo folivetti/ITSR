@@ -14,6 +14,10 @@ The main advantage of this representation when compared to the more common Expre
 
 - Greedy Tree Search for Symbolic Regression (SymTree)
 
+# Webinar Binder:
+
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/folivetti/ITSR/master?filepath=https%3A%2F%2Fgithub.com%2Ffolivetti%2FITSR%2Fblob%2Fmaster%2FWebinar%2FExplorer.ipynb)
+
 # References:
 
 de Franca, F. O. A Greedy Search Tree Heuristic for Symbolic Regression. Information Science, 2017.
