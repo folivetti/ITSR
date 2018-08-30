@@ -16,7 +16,7 @@ The main advantage of this representation when compared to the more common Expre
 
 # Webinar Binder:
 
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/folivetti/ITSR/master?filepath=https%3A%2F%2Fgithub.com%2Ffolivetti%2FITSR%2Fblob%2Fmaster%2FWebinar%2FExplorer.ipynb)
+[![Binder](https://mybinder.org/badge.svg)](https://hub.mybinder.org/user/folivetti-itsr-y1837nsq/notebooks/Webinar/Explorer.ipynb)
 
 # References:
 
