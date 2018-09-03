@@ -85,7 +85,7 @@ def genExprStr(model):
 def getModels():    
     dataset = 'cpu'
     alg = 'IT-ELM (OMP)'
-    f = open(f'models/{dataset}_{alg}_2_3.pkl','rb')
+    f = open(f'models/{dataset}_{alg}_2_0.pkl','rb')
     modelCPU = pickle.load(f)
     f.close()
 
