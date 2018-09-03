@@ -126,7 +126,7 @@ $$
 
 - A few additive terms (linear regression of transformed variables)
 - Each term with as an interaction of a couple of variables
-- Maximum of one non-linear function applied to every interaction (no chainings)
+- Maximum of one non-linear function applied to every interaction (no chaining)
 
 # Interaction-Transformation
 
@@ -336,53 +336,58 @@ Cell --> Run All
 ![](figs/wineRedCplx.png){ width=420px }
 
 
-## Sample equations
-
-F05128-f1:
-
-$$
-\begin{aligned}
-- 8.3 \times 10^{-3} \log{\left(p^{2} t^{2} v + 1\right)} \\
-+ 1 \times 10^{-3} \sin{\left (t v^{2} \right )} \\
-+ 3.1 \times 10^{-3} \cos{\left (p \right )} \\
-+ 8.7 \times 10^{-3}\cos{\left (p^{2} t v^{2} \right )} \\
-- 4.06\cdot 10^{-5} \tan{\left (p^{2} t^{2} v^{2} \right )}
-\end{aligned}
-$$
-
-## Sample equations
+## Sample equation
 
 CPU:
 
 $$
-0.8631183430497685 cache + 1.2023140666505465 \cdot 10^{-5} \sqrt{maxChan maxMem^{2} minMem}
+\approx 0.86 \cdot cache + 0.12 \cdot 10^{-6} \cdot maxMem \sqrt{maxChan \cdot minMem}
 $$
 
-## Sample equations
+## Sample equation
 
 CPU:
 
 $$
-0.5 \cdot maxRAM(MB) \sqrt{ repPerf }
+\approx 0.86 \cdot cache + 0.12 \cdot maxMem(MB) \sqrt{maxChan \cdot minMem(MB)}
 $$
+
+## Sample equation
+
+CPU:
+
+$$
+\approx 0.86 \cdot cache + 0.12 \cdot maxMem(MB) \sqrt{maxChan} \sqrt{ minMem(MB) }
+$$
+
+More cache = more performance! (sounds about right)
+
+## Sample equation
+
+CPU:
+
+$$
+\approx 0.86 \cdot cache + 0.12 \cdot maxMem(MB) \sqrt{maxChan} \sqrt{ minMem(MB) }
+$$
+
+The original paper isn't clear about it, but it seems that max/min Mem refers to the range of machine tests with a given CPU. So the second term may represent the existence of not measured variables proportional to memory and channels of the experimented machines.
 
 # Conclusions
 
-## Resumo
+## Summary
 
-A representação Interação-Transformação permite definir um espaço de busca de expressões matemáticas simples mas capaz de aproximar diversas bases de dados, sendo competitivo com algoritmos do estado-da-arte de regressão.
+- The Interaction-Transformation representation can help to eliminate *complicated* expressions from the symbolic regression search space.
 
-Além disso, o algoritmo SymTree é capaz de encontrar uma boa expressão IT com poucas iterações, sendo um algoritmo simples e computacionalmente leve.
+- Two algorithms created so far: SymTree, a search-based heuristic, and IT-ELM, based on extreme learning machines.
+
+- The results show a good compromise between model accuracy and simplicity.
 
 ## Future research
 
-Muitas possibilidades de estudos futuros:
-
-- Generalizar a representação como uma tipo de dado algébrico
-- Utilizar essa representação em outros contextos
-- Aumentar o espaço de busca permitindo outras expressões simples ainda não compreendidas
-- Criar novos algoritmos de busca para esse espaço de busca
-- Muitos outros...
+- Generalization as a Algebraic Data Type
+- Use this representation for classification, program synthesis, etc.
+- Broaden the search space a little bit
+- Explore other search heuristics (evolutionary based)
 
 ## Try it!
 
