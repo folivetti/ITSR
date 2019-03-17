@@ -58,7 +58,6 @@ $$
 
 A deep chaining of non-linear transformations that just works!
 
-![fig]()
 
 - Universal approximation
 - Alien mathematical expression
