@@ -5,7 +5,7 @@ import sys
 import numpy as np
 
 from sklearn.linear_model import Ridge
-from sklearn.cross_validation import KFold
+from sklearn.model_selection import KFold
 
 class RecursiveSymbolicRegression:
 
@@ -158,12 +158,13 @@ class RecursiveSymbolicRegression:
         
         # Generate transformed dataset Xt
         Xt = self.generateNewData(X, expr)
-        kf = KFold(len(Xt), n_folds=2)
+        kf = KFold(n_splits=2)
+        #len(Xt)
         calcscore = self.invmae
         score = [ calcscore(self.model
                    .fit(Xt[train_index], y[train_index])
                    .predict(Xt[test_index]), y[test_index])
-                   for train_index, test_index in kf
+                   for train_index, test_index in kf.split(Xt)
                 ]
         self.model.fit(Xt,y)
         

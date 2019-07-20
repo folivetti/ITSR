@@ -100,4 +100,4 @@ main = do
         printf "\nMSE test data: %e\n" (sqrt mse)
         printf "\nMAE test data: %.4f\n" mae
   
-    _ -> putStrLn "Usage: ./symreg trainFile testFile interactionsSteps inverseSteps transformationSteps thr"
+    _ -> putStrLn "Usage: ./symtree trainFile testFile interactionsSteps inverseSteps transformationSteps thr"
