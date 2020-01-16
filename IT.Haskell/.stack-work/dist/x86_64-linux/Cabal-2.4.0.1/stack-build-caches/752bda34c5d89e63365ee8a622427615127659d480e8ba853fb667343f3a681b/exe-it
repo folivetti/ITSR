@@ -1,0 +1,32 @@
+/home/olivetti/Projects/Interaction-Transformation/Haskell/it/README.md:
+  hash: b072cab8a3738d3a754495245f87f0d6d588dd0aa74143f6b0c3f7497c4b7723
+  size: 5
+  modtime: 1578483038
+/home/olivetti/Projects/Interaction-Transformation/Haskell/it/src/IT/Regression.hs:
+  hash: 8bf5ee83218d403e8114f4d87d2292769830da45fddc2df249172d0d59695da5
+  size: 5456
+  modtime: 1579015250
+/home/olivetti/Projects/Interaction-Transformation/Haskell/it/it.cabal:
+  hash: 95d4283ee8ea22af3305f0e322c102cc00f17dd74080d49f024348cc5702de06
+  size: 815
+  modtime: 1578950976
+/home/olivetti/Projects/Interaction-Transformation/Haskell/it/src/Main.hs:
+  hash: 8cc8cf92c1b1345e665d52d6535962b952cf87ec11a3f0a0e84269a5213a646a
+  size: 72
+  modtime: 1578950982
+/home/olivetti/Projects/Interaction-Transformation/Haskell/it/src/IT/ITEA.hs:
+  hash: f6fee92ec161b638f2d85a60fd2f41d477264731fd084bfa49b6272872100b8e
+  size: 7082
+  modtime: 1579122844
+/home/olivetti/Projects/Interaction-Transformation/Haskell/it/src/IT.hs:
+  hash: 5ece1c5dd0858ed2173e56125c8bea0695d37e00e0a7f26c16b6e68ac06e6477
+  size: 7258
+  modtime: 1579039727
+/home/olivetti/Projects/Interaction-Transformation/Haskell/it/src/IT/Algorithms.hs:
+  hash: aeb2b8087aefc97c9db08ea21c42650e00b3ea89ed8a1d8dc631b39595c15822
+  size: 1692
+  modtime: 1578955752
+/home/olivetti/Projects/Interaction-Transformation/Haskell/it/src/Example/Regression.hs:
+  hash: 94e0ebe290920e55c9f902c9c9509e52b8ea42fb3e5bfe0998ff4b2bad6c63a2
+  size: 2931
+  modtime: 1579122742
