@@ -18,11 +18,14 @@ import IT
 import IT.ITEA
 import IT.Algorithms
 
-import qualified Data.Vector.Unboxed as V
-import Statistics.Regression
-import Statistics.Matrix.Types
+import qualified Data.Vector.Storable as V
+import qualified Numeric.LinearAlgebra as LA
+import qualified MachineLearning as ML
+import qualified MachineLearning.Regression as MLR
 
-import Data.List (foldl1')
+import Data.List (foldl1', foldl')
+
+type Vector = LA.Vector Double
 
 -- * IT specific stuff
 
@@ -49,13 +52,15 @@ instance IT Regression where
 
   evalTrans (T _ f) (Reg x)  = Reg (f x)
 
-  evalInter One _            = Reg 1.0
-  evalInter (e `Times` i) xs 
-    | V.null xs = error "Error: Vector of variables is smaller than the number of interactions!"
-    | otherwise = Reg x ** fromIntegral e * evalInter i xs'
-        where
-          x   = V.head xs
-          xs' = V.tail xs
+  evalInter inter xs = Reg $ parseInter inter xs 
+    where
+      parseInter One           _     = 1
+      parseInter (e `Times` i) (y:ys) = pow y e * parseInter i ys
+
+      pow x 0 = 1
+      pow x 1 = x
+      pow x 2 = x*x
+      pow x e = if e > 0 then x^e else recip (x^ (-e))
 
 -- | Transformation Functions
 regSin     = T "sin" sin
@@ -91,7 +96,7 @@ meanError :: (Double -> Double) -- ^ a function to be applied to the error terms
           -> Vector             -- ^ fitted values
           -> Vector             -- ^ target values
           -> Double
-meanError op ysHat ys = mean $ V.map op $ V.zipWith (-) ysHat ys
+meanError op ysHat ys = mean $ V.map op $ ysHat - ys
 
 -- | Common error measures for regression: 
 -- MSE, MAE, RMSE, NMSE, r^2
@@ -102,21 +107,13 @@ rmse ysHat ys = sqrt $ mse ysHat ys
 rSq ysHat ys  = 1 - r/t
   where
     ym      = mean ys
-    t       = sumOfSq $ V.map (\yi -> yi -ym) ys
-    r       = sumOfSq $ V.zipWith (-) ys ysHat
+    t       = sumOfSq $ V.map (\yi -> yi - ym) ys
+    r       = sumOfSq $ ys - ysHat
     sumOfSq = V.foldl (\s di -> s + di^2) 0
 
 -- | Predict a linear model
--- the input matrix is transpose because of Statistics.Regression
-(.+.) = V.zipWith (+)
-
-predict :: [Vector] -> Vector -> Vector
-predict xss ws = V.map (+b) $ foldl1' (.+.) zss
-  where
-    vss = xss
-    ws' = V.toList $ V.init ws
-    b   = V.last ws    
-    zss = zipWith (\w vs -> V.map (*w) vs) ws' vss
+predict :: LA.Matrix Double -> Vector -> Vector
+predict = MLR.hypothesis MLR.LeastSquares 
     
 -- | Regression statitstics
 data RegStats = RS { _rmse    :: Double
@@ -139,28 +136,36 @@ instance Show RegStats where
     
 -- | Clean the expression removing invalid terms w.r.t. the training data
 -- it may return an empty expression
-cleanExpr :: Expr Double -> [Vector] -> (Expr Double, [[Double]])
-cleanExpr e xs = removeInvalid' e (Zero, [])
+cleanExpr :: Expr Double -> [[Double]] -> (Expr Double, LA.Matrix Double)
+cleanExpr e xs = (e', LA.fromColumns xss)
   where
-    removeInvalid' Zero (e,l) = (e, reverse l)
-    removeInvalid' (t `Plus` e) (e',l) 
-      | anyInvalid = removeInvalid' e (e',l)
-      | otherwise  = removeInvalid' e (t `Plus` e', zs : l)
-        where
-          zs          = fmap (_unReg . evalTerm @Regression t) xs
-          anyInvalid  = any isInvalid zs
-          isInvalid x = isNaN x || isInfinite x
+    (e', xss) = foldl' combine (Zero, []) $ zipped e
+
+    combine (ei, zss) (t, zs) = (t `Plus` ei, LA.fromList zs : zss)
+    zipped Zero         = []
+    zipped (t `Plus` e) = if   any isInvalid zs -- || tooLowBig zs 
+                          then zipped e
+                          else (t, zs) : zipped e
+      where zs = evalT t xs
+
+    evalT t = map (_unReg . evalTerm @Regression t)
+    isInvalid x = isNaN x || isInfinite x 
+   
+    tooLowBig xs      = mu <= 1e-6 || mu >= 1e5
+      where mu = sum xs / fromIntegral (length xs)
 
 -- | Fitness function for regression
 -- 
 -- First we generate a cleaned expression without any invalid term w.r.t. the training data
 -- Then 
-fitnessReg :: [Vector] -> Vector -> Expr Double -> Solution Double RegStats
+fitnessReg :: [[Double]] -> Vector -> Expr Double -> Solution Double RegStats
 fitnessReg xss ys expr = let (expr', zss) = cleanExpr expr xss
-                             zss'         = map V.fromList zss
-                             (ws, r2)     = olsRegress zss' ys
+                             zss'         = ML.addBiasDimension zss
+                             ws           = if   LA.rank zss' == LA.cols zss'
+                                            then MLR.normalEquation zss' ys
+                                            else MLR.normalEquation_p zss' ys
                              ysHat        = predict zss' ws
-                             rs           = RS (rmse ysHat ys) (mae ysHat ys) (nmse ysHat ys) r2 ws
+                             rs           = RS (rmse ysHat ys) (mae ysHat ys) (nmse ysHat ys) (rSq ysHat ys) ws
                              inf          = 1/0
                              rs'          = RS inf inf inf inf (V.singleton 0.0)
                           in case expr' of

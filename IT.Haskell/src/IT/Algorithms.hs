@@ -13,6 +13,7 @@ fitness function and mutation function.
 module IT.Algorithms where
 
 import IT
+import IT.Random
 
 import Data.Sequence (Seq(..))
 
