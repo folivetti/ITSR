@@ -54,13 +54,10 @@ instance IT Regression where
 
   evalInter inter xs = Reg $ parseInter inter xs 
     where
-      parseInter One           _     = 1
+      parseInter One           _      = 1
       parseInter (e `Times` i) (y:ys) = pow y e * parseInter i ys
 
-      pow x 0 = 1
-      pow x 1 = x
-      pow x 2 = x*x
-      pow x e = if e > 0 then x^e else recip (x^ (-e))
+      pow x e = if e >= 0 then x^e else recip (x^(-e))
 
 -- | Transformation Functions
 regSin     = T "sin" sin
@@ -139,21 +136,18 @@ instance Show RegStats where
 cleanExpr :: Expr Double -> [[Double]] -> (Expr Double, LA.Matrix Double)
 cleanExpr e xs = (e', LA.fromColumns xss)
   where
-    (e', xss) = foldl' combine (Zero, []) $ zipped e
+    (e', xss) = foldl' combine (Zero, []) (zipped e)
 
-    combine (ei, zss) (t, zs) = (t `Plus` ei, LA.fromList zs : zss)
+    combine (ei, zss) (t, zs) = (t `Plus` ei, zs:zss)
     zipped Zero         = []
-    zipped (t `Plus` e) = if   any isInvalid zs -- || tooLowBig zs 
+    zipped (t `Plus` e) = if   any isInvalid zs 
                           then zipped e
-                          else (t, zs) : zipped e
+                          else (t, LA.fromList zs) : zipped e
       where zs = evalT t xs
 
-    evalT t = map (_unReg . evalTerm @Regression t)
+    evalT t     = map (_unReg . evalTerm @Regression t)
     isInvalid x = isNaN x || isInfinite x 
    
-    tooLowBig xs      = mu <= 1e-6 || mu >= 1e5
-      where mu = sum xs / fromIntegral (length xs)
-
 -- | Fitness function for regression
 -- 
 -- First we generate a cleaned expression without any invalid term w.r.t. the training data

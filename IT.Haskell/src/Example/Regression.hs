@@ -87,12 +87,14 @@ test = do
       dim    = LA.cols xss         -- problem dimension
       mf     = mutFun (-3) 3 fitReg (rndTerm dim) rndTrans -- mutation function
       nPop   = 1000                        -- population size
+      nGens  = 1000
 
       genPop  = S.fromList <$> initialPop fitReg dim 4 nPop
       runAlg  = flip evalState g
       gens    = runAlg (genPop >>= itea mf)
-      best    = minimum $ concatMap toList $ take 1000 gens
-      --bestOfGens = fmap (_rmse._stat.minimum.toList.take 100) gens
+      -- best    = minimum $ concatMap toList $ take nGens gens
+      best    = minimum $ map minimum $  take nGens gens
+      --bestOfGens = fmap (_rmse._stat.minimum.toList.take nGens) gens
       zss = map (map _unReg . evalExpr @Regression (_expr best)) (LA.toLists testX)
       theta' = _weights $ _stat best
       yhat' = predict (ML.addBiasDimension (LA.fromLists zss)) theta'
