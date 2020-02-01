@@ -15,6 +15,8 @@ module IT.Algorithms where
 import IT
 import IT.Random
 
+import Control.DeepSeq
+
 import Data.Sequence (Seq(..))
 
 -- | data type containing a solution and some necessary stats
@@ -40,10 +42,14 @@ instance Ord (Solution a b) where
   s1 <= s2 = _fit s1 <= _fit s2
 
 -- | A population of 'Solution a b'
-type Population a b = Seq (Solution a b)
+type Population a b = [Solution a b] -- Seq (Solution a b)
 
--- | 'Fitness' function with signature 'Expr a -> Solution a b'
-type Fitness    a b = Expr a -> Solution a b -- (Expr a, Double, b)
+instance (NFData a, NFData b) => NFData (Solution a b) where
+  rnf a = ()
+
+-- | 'Fitness' function with signature '[Expr a] -> Population a b'
+-- a fitness function should preferably compute in parallel
+type Fitness    a b = [Expr a] -> Population a b -- (Expr a, Double, b)
 
 -- | 'Mutation' function with signature 'Solution a b -> Rnd (Solution a b)'
-type Mutation   a b = Solution a b -> Rnd (Solution a b)
+type Mutation   a   = Expr a -> Rnd (Expr a)

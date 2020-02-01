@@ -28,7 +28,7 @@ import qualified MachineLearning as ML
 import qualified MachineLearning.Regression as MLR
 
 import Control.Monad.State
-import System.Random
+import System.Random.SplitMix
 import Data.List       (transpose)
 import Data.List.Split (splitOn)
 import Data.Foldable   (toList)
@@ -54,21 +54,10 @@ rndTerm dim = sampleTerm rndTrans (rndInter dim)
 -- | sample an expression with n terms
 rndExpr dim n = sampleExpr (rndTerm dim) n
 
-initialPop :: Fitness Double RegStats
-           -> Int -- dimension
-           -> Int -- maxTerms
-           -> Int -- nPop
-           -> Rnd [Solution Double RegStats]
-initialPop fit dim maxTerms 0    = return []
-initialPop fit dim maxTerms nPop = do n <- sampleRng 1 maxTerms
-                                      e  <- rndExpr dim n
-                                      let s = (fit.uniqueTerms) e
-                                      ss <- initialPop fit dim maxTerms (nPop-1)
-                                      return $ s : ss
 
 test :: IO ()
 test = do
-  (xss, ys) <- parseFile <$> readFile "airfoil-train-0.dat"  -- read and parse the file
+  (xss, ys)      <- parseFile <$> readFile "airfoil-train-0.dat"  -- read and parse the file
   (testX, testY) <- parseFile <$> readFile "airfoil-test-0.dat"
   
   -- Linear Regression result
@@ -80,22 +69,26 @@ test = do
   print (theta, r2)
 
   -- ITEA result  
-  g         <- getStdGen          
-  
-  let fitReg = fitnessReg (LA.toLists xss) ys           -- fitness function
-      fitTest = fitnessReg (LA.toLists testX) testY
-      dim    = LA.cols xss         -- problem dimension
-      mf     = mutFun (-3) 3 fitReg (rndTerm dim) rndTrans -- mutation function
-      nPop   = 1000                        -- population size
-      nGens  = 1000
+  g         <- initSMGen          
 
-      genPop  = S.fromList <$> initialPop fitReg dim 4 nPop
+--ConfigMutation = expRng termsRng dim TransFun
+--ConfigFitness =  xss ys
+--ConfigITEA = Mutation Fitness nPop
+
+  let fitReg  = fitnessReg (LA.toLists xss) ys           -- fitness function
+      fitTest = fitnessReg (LA.toLists testX) testY
+      dim    = LA.cols xss                              -- problem dimension
+      mf     = mutFun (-3) 3 6 2 (rndTerm dim) rndTrans -- mutation function
+      nPop   = 1000                                     -- population size
+      nGens  = 100
+
+      genPop  = initialPop dim 4 nPop fitReg
       runAlg  = flip evalState g
-      gens    = runAlg (genPop >>= itea mf)
+      gens    = runAlg (genPop >>= itea mf fitReg)
       -- best    = minimum $ concatMap toList $ take nGens gens
       best    = minimum $ map minimum $  take nGens gens
       --bestOfGens = fmap (_rmse._stat.minimum.toList.take nGens) gens
-      zss = map (map _unReg . evalExpr @Regression (_expr best)) (LA.toLists testX)
+      zss = map (map _unReg . evalExpr @Regression (cleanExpr (_expr best) (LA.toLists xss))) (LA.toLists testX)
       theta' = _weights $ _stat best
       yhat' = predict (ML.addBiasDimension (LA.fromLists zss)) theta'
       stBest = RS (rmse yhat' testY) (mae yhat' testY) (nmse yhat' testY) (rSq yhat' testY) theta'
@@ -103,7 +96,7 @@ test = do
   
   putStrLn "\n\nSymb.  Reg.:"
   print best
-  print solBest
+  --print solBest
   --print bestOfGens
 {-  
 validateConfig :: Config -> IO ()

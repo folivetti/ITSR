@@ -26,8 +26,9 @@ import IT -- (itea, addTerm, dropTerm)
 import IT.Algorithms
 import IT.Random
 
-import System.Random
 import Control.Monad.Extra (iterateM)
+
+import Control.DeepSeq
 
 import Data.Sequence (Seq(..), (><))
 import qualified Data.Sequence as S
@@ -38,8 +39,24 @@ import qualified Data.Sequence as S
 
 -- | Creates an infinite list of populations where the /i/-th 
 -- element corresponds to t he /i/-th generation.
-itea :: Mutation a b -> Population a b -> Rnd [Population a b]
-itea f = iterateM (step f)
+itea :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Population a b -> Rnd [Population a b]
+itea f g = iterateM (step f g)
+
+-- | Generate an Initial Population at Random
+initialPop :: Int                -- dimension
+           -> Int                -- maxTerms
+           -> Int                -- nPop
+           -> Fitness a b        -- fitness function
+           -> Rnd Population a b 
+initialPop dim maxterms nPop fit = fit <$> initialPop' dim maxTerms nPop
+  where
+    initialPop' dim maxTerms 0    = return []
+    initialPop' dim maxTerms nPop = do n <- sampleRng 1 maxTerms
+                                       e  <- rndExpr dim n
+                                       let s = uniqueTerms e
+                                       ss <- initialPop' dim maxTerms (nPop-1)
+                                       return $ s : ss
+
 
 -- | Tournament Selection
 --
@@ -48,22 +65,23 @@ itea f = iterateM (step f)
 -- selection of these combined population with
 -- the same size as the original population.
 --
-tournament :: Population a b -> Rnd (Population a b)
-tournament p = tournament' p (length p `div` 2)
+tournament :: Population a b -> Int -> Rnd (Population a b)
+tournament p 0 = return [] -- Empty
+tournament p n = do pi <- chooseOne p
+                    p' <- tournament p (n-1)
+                    return $ pi:p' -- pi :<| p' 
   where
-    tournament' p 0 = return Empty
-    tournament' p n = do pi <- chooseOne p
-                         p' <- tournament' p (n-1)
-                         return $ pi :<| p' 
-
     chooseOne :: Population a b -> Rnd (Solution a b)
-    chooseOne p = do let n = S.length p
+    chooseOne p = do let n = length p
                      c1 <- sampleTo (n-1)
                      c2 <- sampleTo (n-1)
-                     return (min (p `S.index` c1) (p `S.index` c2))
+                     return (min (p !! c1) (p !! c2)) -- (min (p `S.index` c1) (p `S.index` c2))
 
+
+  
 -- | Perform one iterative step of ITEA
-step :: Mutation a b -> Population a b -> Rnd (Population a b)
-step mutFun pop = do
-  pop'  <- sequence $ mutFun <$> pop
-  tournament (pop >< pop')
+step :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Population a b -> Rnd (Population a b)
+step mutFun fitFun pop = do
+  exprs  <- sequence $ mutFun . _expr <$> pop
+  let pop' = fitFun exprs
+  tournament (pop ++ pop') (length pop)

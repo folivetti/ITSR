@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE BangPatterns #-}
 {-|
 Module      : IT.Regression
 Description : Specific functions for Symbolic Regression
@@ -14,6 +15,8 @@ Definitions of IT data structure and support functions.
 -}
 module IT.Regression where
 
+import Control.Exception
+
 import IT
 import IT.ITEA
 import IT.Algorithms
@@ -24,6 +27,9 @@ import qualified MachineLearning as ML
 import qualified MachineLearning.Regression as MLR
 
 import Data.List (foldl1', foldl')
+
+import Control.Parallel.Strategies
+import Control.DeepSeq
 
 type Vector = LA.Vector Double
 
@@ -52,10 +58,10 @@ instance IT Regression where
 
   evalTrans (T _ f) (Reg x)  = Reg (f x)
 
-  evalInter inter xs = Reg $ parseInter inter xs 
+  evalInter inter xs = Reg $ parseInter inter xs 1
     where
-      parseInter One           _      = 1
-      parseInter (e `Times` i) (y:ys) = pow y e * parseInter i ys
+      parseInter One   _  !r = r
+      parseInter (e `Times` i) (y:ys) !r = parseInter i ys (r * pow y e)
 
       pow x e = if e >= 0 then x^e else recip (x^(-e))
 
@@ -128,40 +134,60 @@ instance Show RegStats where
       names = ["RMSE: ", "MAE: ", "NMSE: ", "r^2: ", "Weights: "]
       vals  = [show r, show m, show n, show r2, show w]
 
-
+instance NFData RegStats where
+  rnf a = ()
+  
 -- * Utility functions
     
 -- | Clean the expression removing invalid terms w.r.t. the training data
 -- it may return an empty expression
-cleanExpr :: Expr Double -> [[Double]] -> (Expr Double, LA.Matrix Double)
-cleanExpr e xs = (e', LA.fromColumns xss)
+isInvalid :: Double -> Bool
+isInvalid x = isNaN x || isInfinite x
+
+isValid :: [Double] -> Bool
+isValid xs = all (not.isInvalid) xs -- && (maximum xs < 1e6) -- var > 1e-4 &&
   where
-    (e', xss) = foldl' combine (Zero, []) (zipped e)
+    mu  = sum(xs) / n
+    var = (*(1/n)) . sum $ map (\x -> (x-mu)*(x-mu)) xs
+    n   = fromIntegral (length xs)
 
-    combine (ei, zss) (t, zs) = (t `Plus` ei, zs:zss)
-    zipped Zero         = []
-    zipped (t `Plus` e) = if   any isInvalid zs 
-                          then zipped e
-                          else (t, LA.fromList zs) : zipped e
-      where zs = evalT t xs
+exprToMatrix :: [[Double]] -> Expr Double -> LA.Matrix Double
+exprToMatrix xss e = (ML.addBiasDimension . LA.tr . LA.fromLists) $ filter isValid zss
+  where
+    zss = mapterms e
+    mapterms Zero          = []
+    mapterms (t `Plus` e') = zs : mapterms e'
+      where zs = map (_unReg . evalTerm @Regression t) xss
+    
+cleanExpr :: [[Double]] -> Expr Double -> Expr Double
+cleanExpr _    Zero        = Zero
+cleanExpr xss (t `Plus` e) = if (any isInvalid . map evalT) xss
+                             then cleanExpr e xss
+                             else t `Plus` cleanExpr e xss
+  where
+    evalT = _unReg . evalTerm @Regression t
+  
+notInfNan :: Solution Double RegStats -> Bool
+notInfNan s = not (isInfinite f || isNaN f)
+  where f = _fit s
 
-    evalT t     = map (_unReg . evalTerm @Regression t)
-    isInvalid x = isNaN x || isInfinite x 
-   
+parMapChunk :: Int -> (Expr Double -> LA.Matrix Double) -> [Expr Double] -> [LA.Matrix Double]
+parMapChunk n f xs = map f xs `using` parListChunk n rdeepseq
+
 -- | Fitness function for regression
 -- 
 -- First we generate a cleaned expression without any invalid term w.r.t. the training data
 -- Then 
-fitnessReg :: [[Double]] -> Vector -> Expr Double -> Solution Double RegStats
-fitnessReg xss ys expr = let (expr', zss) = cleanExpr expr xss
-                             zss'         = ML.addBiasDimension zss
-                             ws           = if   LA.rank zss' == LA.cols zss'
-                                            then MLR.normalEquation zss' ys
-                                            else MLR.normalEquation_p zss' ys
-                             ysHat        = predict zss' ws
-                             rs           = RS (rmse ysHat ys) (mae ysHat ys) (nmse ysHat ys) (rSq ysHat ys) ws
-                             inf          = 1/0
-                             rs'          = RS inf inf inf inf (V.singleton 0.0)
-                          in case expr' of
-                               Zero -> Sol expr  (_rmse rs') rs'
-                               _    -> Sol expr' (_rmse rs) rs
+fitnessReg :: [[Double]] -> Vector -> [Expr Double] -> Population Double RegStats
+fitnessReg xss ys exprs = let zs = parMapChunk 100 (exprToMatrix xss) exprs
+                          in  filter notInfNan $ zipWith (regress xss ys) exprs zs
+
+regress :: [[Double]] -> Vector -> Expr Double -> LA.Matrix Double -> Solution Double RegStats
+regress xss ys expr zss 
+  | LA.rows zss == 0 = let rs  = RS inf inf inf inf (V.singleton 0.0)
+                           inf = 1/0
+                       in  Sol expr (_rmse rs ) rs
+  | otherwise        = let ws    = MLR.normalEquation_p zss ys 
+                           ysHat = predict zss ws 
+                           rs    = RS (rmse ysHat ys) (mae ysHat ys) (nmse ysHat ys) (rSq ysHat ys) ws
+                       in  Sol expr (_rmse rs ) rs
