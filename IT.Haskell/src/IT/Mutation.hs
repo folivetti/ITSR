@@ -102,15 +102,13 @@ positiveInter = combineInter (+)
 negativeInter = combineInter (-)
 
 -- | Apply one of the mutation functions at random
-mutFun :: Int                    -- ^ minExp
-       -> Int                    -- ^ maxExp
-       -> Int                    -- ^ minTerms
-       -> Int                    -- ^ maxTerms
+mutFun :: (Int, Int)             -- ^ minExp, maxExp
+       -> (Int, Int)             -- ^ minTerms, maxTerms
        -> Rnd (Term a)           -- ^ random term generator
        -> Rnd (Transformation a) -- ^ random term generator
        -> Expr a                 -- ^ Expression to be mutated
        -> Rnd (Expr a)           -- ^ Random Expression generator
-mutFun minExp maxExp rndTerm rndTrans e = sampleFromList muts >>= id
+mutFun (minExp, maxExp) (minTerms, maxTerms) rndTerm rndTrans e = sampleFromList muts >>= id
   where
     muts   = [replaceTerm rndTerm         e
              ,replaceTrans rndTrans       e

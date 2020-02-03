@@ -46,10 +46,12 @@ itea f g = iterateM (step f g)
 initialPop :: Int                -- dimension
            -> Int                -- maxTerms
            -> Int                -- nPop
+           -> Rnd (Term a)
            -> Fitness a b        -- fitness function
-           -> Rnd Population a b 
-initialPop dim maxterms nPop fit = fit <$> initialPop' dim maxTerms nPop
+           -> Rnd (Population a b)
+initialPop dim maxTerms nPop rndTerm fit = fit <$> initialPop' dim maxTerms nPop
   where
+    rndExpr dim n = sampleExpr rndTerm n
     initialPop' dim maxTerms 0    = return []
     initialPop' dim maxTerms nPop = do n <- sampleRng 1 maxTerms
                                        e  <- rndExpr dim n

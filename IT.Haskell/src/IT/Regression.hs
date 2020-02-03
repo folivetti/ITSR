@@ -18,7 +18,6 @@ module IT.Regression where
 import Control.Exception
 
 import IT
-import IT.ITEA
 import IT.Algorithms
 
 import qualified Data.Vector.Storable as V
@@ -162,8 +161,8 @@ exprToMatrix xss e = (ML.addBiasDimension . LA.tr . LA.fromLists) $ filter isVal
 cleanExpr :: [[Double]] -> Expr Double -> Expr Double
 cleanExpr _    Zero        = Zero
 cleanExpr xss (t `Plus` e) = if (any isInvalid . map evalT) xss
-                             then cleanExpr e xss
-                             else t `Plus` cleanExpr e xss
+                             then cleanExpr xss e
+                             else t `Plus` cleanExpr xss e
   where
     evalT = _unReg . evalTerm @Regression t
   
@@ -181,6 +180,17 @@ parMapChunk n f xs = map f xs `using` parListChunk n rdeepseq
 fitnessReg :: [[Double]] -> Vector -> [Expr Double] -> Population Double RegStats
 fitnessReg xss ys exprs = let zs = parMapChunk 100 (exprToMatrix xss) exprs
                           in  filter notInfNan $ zipWith (regress xss ys) exprs zs
+
+fitnessTest :: [[Double]] -> Vector -> Solution Double RegStats -> RegStats
+fitnessTest xss ys sol = let zs = exprToMatrix xss (_expr sol)
+                             ws = (_weights . _stat) sol
+                             ysHat = predict zs ws 
+                             rs    = RS (rmse ysHat ys) (mae ysHat ys) (nmse ysHat ys) (rSq ysHat ys) ws
+                             inf   = 1/0
+                          in if V.length ws == LA.cols zs
+                             then rs
+                             else RS inf inf inf inf (V.singleton 0.0)
+                             
 
 regress :: [[Double]] -> Vector -> Expr Double -> LA.Matrix Double -> Solution Double RegStats
 regress xss ys expr zss 
