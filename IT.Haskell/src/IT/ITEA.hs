@@ -40,7 +40,8 @@ import qualified Data.Sequence as S
 -- | Creates an infinite list of populations where the /i/-th 
 -- element corresponds to t he /i/-th generation.
 itea :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Population a b -> Rnd [Population a b]
-itea f g = iterateM (step f g)
+itea f g p0 = let n = length p0
+              in  iterateM (step f g n) p0
 
 -- | Generate an Initial Population at Random
 initialPop :: Int                -- dimension
@@ -79,11 +80,9 @@ tournament p n = do pi <- chooseOne p
                      c2 <- sampleTo (n-1)
                      return (min (p !! c1) (p !! c2)) -- (min (p `S.index` c1) (p `S.index` c2))
 
-
-  
 -- | Perform one iterative step of ITEA
-step :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Population a b -> Rnd (Population a b)
-step mutFun fitFun pop = do
+step :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Int -> Population a b -> Rnd (Population a b)
+step mutFun fitFun nPop pop = do
   exprs  <- sequence $ mutFun . _expr <$> pop
   let pop' = fitFun exprs
-  tournament (pop ++ pop') (length pop)
+  tournament (pop ++ pop') nPop

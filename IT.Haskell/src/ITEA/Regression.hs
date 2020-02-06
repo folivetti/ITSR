@@ -27,12 +27,13 @@ runITEAReg (D tr te) mcfg output nPop nGens = do
   g <- initSMGen
   (trainX, trainY) <- parseFile <$> readFile tr
   (testX,  testY ) <- parseFile <$> readFile te
-  let fitTrain = fitnessReg (LA.toLists trainX) trainY          
+  let fitTrain = fitnessReg nPop (LA.toLists trainX) trainY          
       fitTest  = fitnessTest (LA.toLists testX ) testY
       dim      = LA.cols trainX
       (mutFun, rndTerm)   = withMutation mcfg dim
       p0       = initialPop dim (getMaxTerms mcfg) nPop rndTerm fitTrain
       gens     = (p0 >>= itea mutFun fitTrain) `evalState` g
+      best     = getBest nGens gens
   genReports output gens nGens fitTest
   
 

@@ -16,6 +16,7 @@ Definitions of IT data structure and support functions.
 module IT.Regression where
 
 import Control.Exception
+import GHC.Conc (numCapabilities)
 
 import IT
 import IT.Algorithms
@@ -171,15 +172,16 @@ notInfNan s = not (isInfinite f || isNaN f)
   where f = _fit s
 
 parMapChunk :: Int -> (Expr Double -> LA.Matrix Double) -> [Expr Double] -> [LA.Matrix Double]
-parMapChunk n f xs = map f xs `using` parListChunk n rdeepseq
+parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rdeepseq
 
 -- | Fitness function for regression
 -- 
 -- First we generate a cleaned expression without any invalid term w.r.t. the training data
 -- Then 
-fitnessReg :: [[Double]] -> Vector -> [Expr Double] -> Population Double RegStats
-fitnessReg xss ys exprs = let zs = parMapChunk 100 (exprToMatrix xss) exprs
-                          in  filter notInfNan $ zipWith (regress xss ys) exprs zs
+fitnessReg :: Int -> [[Double]] -> Vector -> [Expr Double] -> Population Double RegStats
+fitnessReg nPop xss ys exprs = let n  = nPop `div` (2*numCapabilities)
+                                   zs = parMapChunk n (exprToMatrix xss) exprs
+                               in  filter notInfNan $ zipWith (regress xss ys) exprs zs
 
 fitnessTest :: [[Double]] -> Vector -> Solution Double RegStats -> RegStats
 fitnessTest xss ys sol = let zs = exprToMatrix xss (_expr sol)
