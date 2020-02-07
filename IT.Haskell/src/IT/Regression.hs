@@ -124,8 +124,9 @@ data RegStats = RS { _rmse    :: Double
                    , _nmse    :: Double
                    , _r2      :: Double
                    , _weights :: Vector  -- ^ the fitted weights for the IT expression
-                   } 
+                   }
 
+ 
 -- | Displaying the statistics, one per line
 instance Show RegStats where
   show (RS r m n r2 w) = stats ++ "\n\n"

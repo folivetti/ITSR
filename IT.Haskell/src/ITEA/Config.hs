@@ -123,7 +123,7 @@ getBest :: Int  -> [Population Double RegStats] -> Solution Double RegStats
 getBest n p     = minimum $ getAllBests n p
 getAllBests n p = map minimum (take n p) 
 
-data StatType = Best | Worst | Avg
+data StatType = Best | Worst | Avg deriving Show
 
 applyStat f n p = map (map f) $ take n p
 
@@ -133,15 +133,20 @@ getAll Worst f n p = map maximum (applyStat f n p)
 getAll Avg   f n p = map mean    (applyStat f n p)
   where mean xs = sum xs / fromIntegral (length xs)
 
-getAllStats :: Int -> [[RegStats]] -> (RegStats -> Double) -> [(Double, Double, Double)]
-getAllStats n p f = map myfold (take n p) `using` parListChunk 100 rdeepseq
+getAllStats :: Int -> [[RegStats]] -> [AggStats]
+getAllStats n p = map myfold (take n p)
   where
-    myfold :: [RegStats] -> (Double, Double, Double)
-    myfold pi = let xs = map f pi
-                    y  = head xs
-                    g (mi,ma,s,n) x    = (min mi x, max ma x, s+x,n+1)
-                    (mini, maxi, s, n) = foldl' g (y,y,0,0) xs
-                in  (mini, maxi, s/n)
+    myfold :: [RegStats] -> AggStats
+    myfold (p:pi) = let a0 = AS p p p
+                        f p4 (AS p1 p2 p3) = AS (best p1 p4) (worst p2 p4) (avg p3 p4)
+                        a1 = foldr f a0 pi
+                        n  = fromIntegral $ length pi + 1
+                     in getAvg a1 n
+                     
+    best  (RS x1 x2 x3 x4 x5) (RS y1 y2 y3 y4 _) = RS (min x1 y1) (min x2 y2) (min x3 y3) (max x4 y4) x5
+    worst (RS x1 x2 x3 x4 x5) (RS y1 y2 y3 y4 _) = RS (max x1 y1) (max x2 y2) (max x3 y3) (min x4 y4) x5
+    avg   (RS x1 x2 x3 x4 x5) (RS y1 y2 y3 y4 _) = RS (x1 + y1) (x2 + y2) (x3 + y3) (x4 + y4) x5
+    getAvg (AS a1 a2 (RS x1 x2 x3 x4 x5))  n = AS  a1 a2 (RS (x1/n) (x2/n) (x3/n) (x4/n) x5)
 
 createIfDoesNotExist fname = do
   isCreated <- doesFileExist fname
@@ -200,33 +205,40 @@ genReports (FullLog dirname) pop n fitTest = do
       evoTrain  = getAllStats n statTrain
       evoTest   = getAllStats n statTest 
 
-      evoTrainStats = map evoTrain [_rmse, _mae, _nmse, _r2]
-      evoTestStats  = map evoTest  [_rmse, _mae, _nmse, _r2]
+  genEvoReport evoTrain (dirname ++ "/train")
+  genEvoReport evoTest  (dirname ++ "/test")
 
-      combinations = (++) <$> ["Rmse", "Mae", "Nmse", "R2"] <*> ["Best", "Worst", "Avg"]
-      params       = (,)  <$> ["Rmse", "Mae", "Nmse", "R2"] <*> ["Best", "Worst", "Avg"]
-      trainnames   = map (\s -> dirname ++ "/train" ++ s ++ ".csv") combinations
-      testnames    = map (\s -> dirname ++ "/test"  ++ s ++ ".csv") combinations
+data AggStats = AS { _best  :: RegStats
+                   , _worst :: RegStats
+                   , _avg   :: RegStats
+                   }
 
-  mapM_ (genEvoReport evoTrainStats) $ zip trainnames params
-  mapM_ (genEvoReport evoTestStats)  $ zip testnames  params
+data Metric = RMSE | MAE | NMSE | R2 deriving Show
 
-genEvoReport :: [[(Double, Double, Double)]] -> (String, (String, String)) -> IO ()
-genEvoReport stats (fname, (p1,p2)) = do
-  let
-    datavalues = case p1 of
-                   "Rmse" -> stats !! 0
-                   "Mae"  -> stats !! 1
-                   "Nmse" -> stats !! 2
-                   "R2"   -> stats !! 3
-    statsvals  = case p2 of
-                   "Best"  -> map (\(x,_,_) -> x) datavalues
-                   "Worst" -> map (\(_,x,_) -> x) datavalues
-                   "Avg"   -> map (\(_,_,x) -> x) datavalues
-    s = concat $ intersperse "," $ map show statsvals
-  h <- openFile fname AppendMode
-  hPutStr h s
-  hClose h
+genEvoStream [x] hs = do
+  let zs = map (show . ($ x)) [_rmse, _mae, _nmse, _r2]
+  zipWithM_ hPutStr hs zs
+
+genEvoStream (x:xs) hs = do
+  let zs = map ((++",") . show . ($ x)) [_rmse, _mae, _nmse, _r2]
+  zipWithM_ hPutStr hs zs
+  genEvoStream xs hs
+
+genEvoReport :: [AggStats] -> String -> IO ()
+genEvoReport stats dirname = do
+  let names     = fmap (dirname++) ["Rmse", "Mae", "Nmse", "R2"]
+      nameBest  = fmap (++"Best.csv") names
+      nameWorst = fmap (++"Worst.csv") names
+      nameAvg   = fmap (++"Avg.csv") names
+  hsBest   <- mapM (\n -> openFile n AppendMode) nameBest
+  hsWorst  <- mapM (\n -> openFile n AppendMode) nameWorst
+  hsAvg    <- mapM (\n -> openFile n AppendMode) nameAvg
+  genEvoStream (fmap _best  stats) hsBest
+  genEvoStream (fmap _worst stats) hsWorst
+  genEvoStream (fmap _avg   stats) hsAvg
+  mapM_ hClose hsBest
+  mapM_ hClose hsWorst
+  mapM_ hClose hsAvg
 
 resultsToStr :: Solution Double RegStats -> RegStats -> [String]
 resultsToStr train stest = (map show statlist) ++ [show (_expr train)]
