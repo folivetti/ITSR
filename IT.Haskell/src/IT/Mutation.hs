@@ -38,7 +38,7 @@ addTerm :: Rnd (Term a) -> Mutation a
 addTerm rndTerm e = do t <- rndTerm
                        if e `hasTerm` t
                        then return e
-                       else return (t `Plus` e)
+                       else return (t `consTerm` e)
 
 -- | Create a Drop term mutation.
 --
@@ -57,7 +57,7 @@ replaceTerm rndTerm e = do let n = exprlen e
                            t <- rndTerm
                            if   e `hasTerm` t
                            then return e
-                           else return $ t `Plus` (removeIthTerm i e)  
+                           else return $ t `consTerm` (removeIthTerm i e)  
                                             
 replaceTrans :: Rnd (Transformation a) -> Mutation a
 replaceTrans rndTrans e = do let n = exprlen e
@@ -65,10 +65,10 @@ replaceTrans rndTrans e = do let n = exprlen e
                              tr <- rndTrans
                              return (replace i tr e)
   where
-    change tr' (tr `After` i)  = (tr' `After` i)
-    replace 0  tr Zero         = Zero
-    replace 0  tr (t `Plus` e) = change tr t `Plus` e
-    replace i  tr (t `Plus` e) = t `Plus` replace (i-1) tr e
+    change tr' (Term tr i)     = (Term tr' i)
+    replace 0  tr (Expr [])    = Expr []
+    replace 0  tr (Expr (t:e)) = Expr (change tr t : e)
+    replace i  tr (Expr (t:e)) = t `consTerm` replace (i-1) tr (Expr e)
 
 combineInter :: (Int -> Int -> Int) -> Int -> Int -> Mutation a
 combineInter op minExp maxExp e = do let n = exprlen e
@@ -80,20 +80,15 @@ combineInter op minExp maxExp e = do let n = exprlen e
                                          ti'= combineBoth ti tj
                                      if  allZeros ti'
                                      then return e'
-                                     else return . uniqueTerms $ ti' `Plus` e'
+                                     else return . uniqueTerms $ ti' `consTerm` e'
   where
-    allZeros (_ `After` int) = allZeros' int
-    allZeros' One = True
-    allZeros' (0 `Times` i) = allZeros' i
-    allZeros' (_ `Times` i) = False
+    allZeros (Term _ (Strength is)) = all (==0) is
     
     fromJust (Just x) = x
        
-    combineBoth (tr1 `After` int1) (_ `After` int2) = tr1 `After` (applyInters int1 int2)
+    combineBoth (Term tr1 int1) (Term _ int2) = Term tr1 (applyInters int1 int2)
     
-    applyInters One             _               = One
-    applyInters _               One             = One
-    applyInters (e1 `Times` i1) (e2 `Times` i2) = minmax (e1 `op` e2) `Times` (applyInters i1 i2)
+    applyInters (Strength is1) (Strength is2)   = Strength $ zipWith (\i1 i2 -> minmax (i1 `op` i2)) is1 is2
       
     minmax x = min maxExp $ max minExp $ x
 
@@ -118,18 +113,3 @@ mutFun (minExp, maxExp) (minTerms, maxTerms) rndTerm rndTrans e = sampleFromList
     addMut  = if len <= maxTerms then [addTerm rndTerm e] else []
     dropMut = if len >= minTerms then [dropTerm e]        else []
     len     = exprlen e
-    
--- * Internal functions
-
-removeIthTerm :: Int -> Expr a -> Expr a
-removeIthTerm _ Zero         = Zero
-removeIthTerm 0 (t `Plus` e) = e
-removeIthTerm i (t `Plus` e) = t `Plus` removeIthTerm (i-1) e
-
-getIthTerm :: Int -> Expr a -> Maybe (Term a)
-getIthTerm _ Zero = Nothing
-getIthTerm 0 (t `Plus` e) = Just t
-getIthTerm i (t `Plus` e) = getIthTerm (i-1) e
-
-exprlen Zero = 0
-exprlen (t `Plus` e) = 1 + exprlen e

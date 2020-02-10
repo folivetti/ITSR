@@ -13,9 +13,13 @@ Definitions of IT data structure and support functions.
 -}
 module IT where
 
+import Data.Coerce
+import Data.Foldable
+import Data.Semigroup
+
 import System.Random
 import Control.Monad.State
-import Data.List (intercalate)
+import Data.List (intercalate, nub)
 import qualified Numeric.LinearAlgebra as V
 
 -- * IT expression definitions
@@ -24,14 +28,11 @@ import qualified Numeric.LinearAlgebra as V
 -- with a /interaction/ function ('[a] -> a').
 -- The interaction function is the product of each variable to a given power.
 
-data Interaction      = One | Int `Times` Interaction
-data Transformation a = T String (a -> a)
-data Term           a = (Transformation a) `After` Interaction 
-data Expr           a = Zero | Term a `Plus` (Expr a)
+newtype Interaction   = Strength [Int]
+data Transformation a = Transformation String (a -> a)
+data (Term a)         = Term (Transformation a) Interaction
+newtype (Expr a)      = Expr [Term a]
 
--- | infix priority of constructors
-infixr 6 `Times`
-infixr 6 `Plus`
 
 -- * Class 'IT' of IT-expressions
 
@@ -41,60 +42,71 @@ infixr 6 `Plus`
 -- For example, an 'IT Regression' is represented by
 -- an 'Expr Double' and should be evaluated with a 
 -- vector of input parameters of type 'Vector Double'.
+itTimesDefault :: (Monoid a1, Coercible a1 c) => (a2 -> a1) -> [a2] -> Interaction -> c
+itTimesDefault p xs (Strength is) = coerce . fold $ zipWith stimesMonoid is (map p xs)
+
+itAddDefault :: (Foldable t, Monoid a1, Coercible a1 b) => (a2 -> a1) -> t a2 -> b
+itAddDefault p xs                 = coerce $ foldMap p xs
+
 class IT a where
-  type Rep a :: *
-  evalExpr  :: Expr (Rep a)           -> [Rep a] -> [a]
-  evalTerm  :: Term (Rep a)           -> [Rep a] -> a
-  evalTrans :: Transformation (Rep a) -> a                -> a 
-  evalInter :: Interaction            -> [Rep a] -> a
+  itTimes  :: [a] -> Interaction -> a
+  itAdd    :: [a] -> a
+  itWeight :: Double -> a -> a
+
+evalTerm :: IT a => Term a -> [a] -> a
+evalTerm (Term (Transformation _ f) is) xs = f (itTimes xs is)
+
+evalExprToList :: (IT a) => Expr a -> [a] -> [a]
+evalExprToList (Expr es) xs = map (\t -> evalTerm t xs) es
+
+evalExpr :: (IT a) => Expr a -> [a] -> [Double] -> a
+evalExpr (Expr es) xs ws = itAdd $ zipWith itWeight ws (map (\t -> evalTerm t xs) es)
   
 -- * 'Show' and 'Eq' instances
 
 instance (Show a) => Show (Expr a) where
-  show Zero            = ""
-  show (t `Plus` Zero) = show t
-  show (t `Plus` e)    = show t ++ " + " ++ show e
+  show (Expr es) = intercalate " + " $ map show es
 
 instance Show a => Show (Term a) where
-   show (t `After` i) = show t ++ "(" ++ show i ++ ")"
+   show (Term tr i)   = show tr ++ "(" ++ show i ++ ")" 
 
 instance Show a => Show (Transformation a) where
-  show (T s _) = s
+  show (Transformation s _) = s
 
 instance Show Interaction where
-  show es = intercalate "*" $ show' es 0
-    where
-      show' One            _ = []
-      show' (0 `Times` es) n = show' es (n+1)
-      show' (1 `Times` es) n = ("x" ++ show n) : show' es (n+1)
-      show' (e `Times` es) n = ("x" ++ show n ++ "^" ++ show e) : show' es (n+1)
-
+  show (Strength es) = intercalate "*" $ filter (/="") $ zipWith show' [0..] es
+    where show' n 0 = ""
+          show' n 1 = 'x' : show n
+          show' n e = ('x' : show n) ++ "^(" ++  show e ++ ")"
+          
 instance Eq (Term a) where
-  (t1 `After` i1) == (t2 `After` i2) = i1 == i2
+  (Term tr1 (Strength i1)) == (Term tr2 (Strength  i2)) = i1 == i2
 
 instance Eq (Transformation a) where
-  (T s1 _) == (T s2 _) = s1==s2
-
-instance Eq Interaction where
-  One == One = True
-  One == _   = False
-  _   == One = False
-  (i1 `Times` is1) == (i2 `Times` is2) = (i1==i2) && (is1 == is2)
-
+  (Transformation s1 _) == (Transformation s2 _) = s1==s2
+  
 -- * Utility functions
 
 -- | Remove duplicated terms
 -- implementation similar to 'nub'
 uniqueTerms :: Expr a -> Expr a
-uniqueTerms Zero         = Zero
-uniqueTerms (t `Plus` e) = t `Plus` uniqueTerms (filterExpr (/=t) e)
-  where
-    filterExpr p Zero = Zero
-    filterExpr p (t `Plus` e) 
-      | p t       = t `Plus` filterExpr p e
-      | otherwise = filterExpr p e
+uniqueTerms (Expr ts) = Expr (nub ts)
 
 -- | Check whether and expression has a given term.
 hasTerm :: Expr a -> Term a -> Bool
-hasTerm Zero _ = False
-hasTerm (t `Plus` e) t' = t'==t || hasTerm e t'
+hasTerm (Expr ts) t = t `elem` ts
+
+
+-- * Internal functions
+
+removeIthTerm :: Int -> Expr a -> Expr a
+removeIthTerm i (Expr e) = Expr (take i e ++ drop (i+1) e)
+
+getIthTerm :: Int -> Expr a -> Maybe (Term a)
+getIthTerm ix (Expr e) = if   ix >= length e
+                         then Nothing
+                         else Just (e !! ix)
+
+exprlen (Expr e) = length e
+consTerm t (Expr e) = Expr (t:e)
+consInter i (Strength is) = Strength (i:is)

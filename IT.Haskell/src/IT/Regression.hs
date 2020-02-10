@@ -15,6 +15,10 @@ Definitions of IT data structure and support functions.
 -}
 module IT.Regression where
 
+import Data.Coerce
+import Data.Foldable
+import Data.Semigroup
+
 import Control.Exception
 import GHC.Conc (numCapabilities)
 
@@ -36,49 +40,46 @@ type Vector = LA.Vector Double
 -- * IT specific stuff
 
 -- | Regression problem will deal with inputs of type 'Double'
-newtype Regression = Reg {_unReg :: Double}
-                       deriving (Num, Floating, Fractional)
+newtype Floating a => Regression a = Reg {_unReg :: a}
+                         deriving (Num, Floating, Fractional)
 
 -- | Simply shows the packed 'Double'
-instance Show Regression where
+instance (Show a, Floating a) => Show (Regression a) where
   show (Reg x) = show x
 
+instance (NFData a, Floating a) => NFData (Regression a) where
+  rnf a = ()
+  
 -- | IT Instance for regression evals an expression to
 -- sum(w_i * term_i) + w0
 -- with
 -- term_i = f_i(p_i(xs))
 -- and p_i(xs) = prod(x^eij)
-instance IT Regression where
-  type Rep Regression = Double
-
-  evalExpr Zero _            = []
-  evalExpr (t `Plus` es) xs  = evalTerm t xs : evalExpr es xs
-
-  evalTerm (t `After` i) xs  = evalTrans t $ evalInter i xs
-
-  evalTrans (T _ f) (Reg x)  = Reg (f x)
-
-  evalInter inter xs = Reg $ parseInter inter xs 1
+instance Floating a => IT (Regression a) where
+  itTimes xs (Strength is) = product $ zipWith pow xs is
     where
-      parseInter One   _  !r = r
-      parseInter (e `Times` i) (y:ys) !r = parseInter i ys (r * pow y e)
-
-      pow x e = if e >= 0 then x^e else recip (x^(-e))
+      pow x i = if i<0
+                then recip (x^(abs i))
+                else x^i
+    
+  itAdd   = itAddDefault Sum
+  itWeight x (Reg y) = Reg (realToFrac x * y)
 
 -- | Transformation Functions
-regSin     = T "sin" sin
-regCos     = T "cos" cos
-regTan     = T "tan" tan
-regTanh    = T "tanh" tanh
+regSin, regCos, regTan, regTanh, regSqrt, regAbsSqrt, regLog, regExp :: Floating a => Transformation (Regression a)
+regSin     = Transformation "sin" sin
+regCos     = Transformation "cos" cos
+regTan     = Transformation "tan" tan
+regTanh    = Transformation "tanh" tanh
 
-regSqrt    = T "sqrt" sqrt
-regAbsSqrt = T "sqrt.abs" (sqrt.abs)
-regLog     = T "log" log
-regExp     = T "exp" exp
+regSqrt    = Transformation "sqrt" sqrt
+regAbsSqrt = Transformation "sqrt.abs" (sqrt.abs)
+regLog     = Transformation "log" log
+regExp     = Transformation "exp" exp
 
 regTrig      = [regSin, regCos, regTan, regTanh]
 regNonLinear = [regSqrt, regAbsSqrt, regLog, regExp]
-regLinear    = [T "id" id]
+regLinear    = [Transformation "id" id]
 
 regAll = regTrig ++ regNonLinear ++ regLinear
 
@@ -152,39 +153,36 @@ isValid xs = all (not.isInvalid) xs -- && (maximum xs < 1e6) -- var > 1e-4 &&
     var = (*(1/n)) . sum $ map (\x -> (x-mu)*(x-mu)) xs
     n   = fromIntegral (length xs)
 
-exprToMatrix :: [[Double]] -> Expr Double -> LA.Matrix Double
-exprToMatrix xss e = (ML.addBiasDimension . LA.tr . LA.fromLists) $ filter isValid zss
+exprToMatrix :: [[Regression Double]] -> Expr (Regression Double) -> LA.Matrix Double
+exprToMatrix rss (Expr e) = (ML.addBiasDimension . LA.tr . LA.fromLists) $ filter isValid zss
   where
-    zss = mapterms e
-    mapterms Zero          = []
-    mapterms (t `Plus` e') = zs : mapterms e'
-      where zs = map (_unReg . evalTerm @Regression t) xss
+    zss = map (\t -> map (_unReg . evalTerm t) rss) e
     
-cleanExpr :: [[Double]] -> Expr Double -> Expr Double
-cleanExpr _    Zero        = Zero
-cleanExpr xss (t `Plus` e) = if (any isInvalid . map evalT) xss
-                             then cleanExpr xss e
-                             else t `Plus` cleanExpr xss e
+cleanExpr :: [[Regression Double]] -> Expr (Regression Double) -> Expr (Regression Double)
+cleanExpr rss (Expr e) = Expr (cleanExpr' e)
   where
-    evalT = _unReg . evalTerm @Regression t
+    cleanExpr' (t:e) = if (any isInvalid . map (evalT t)) rss
+                       then cleanExpr' e
+                       else t : cleanExpr' e
+    evalT t = _unReg . evalTerm t
   
-notInfNan :: Solution Double RegStats -> Bool
+notInfNan :: Solution (Regression Double) RegStats -> Bool
 notInfNan s = not (isInfinite f || isNaN f)
   where f = _fit s
 
-parMapChunk :: Int -> (Expr Double -> LA.Matrix Double) -> [Expr Double] -> [LA.Matrix Double]
+parMapChunk :: Int -> (Expr (Regression Double) -> LA.Matrix Double) -> [Expr (Regression Double)] -> [LA.Matrix Double]
 parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rdeepseq
 
 -- | Fitness function for regression
 -- 
 -- First we generate a cleaned expression without any invalid term w.r.t. the training data
 -- Then 
-fitnessReg :: Int -> [[Double]] -> Vector -> [Expr Double] -> Population Double RegStats
+fitnessReg :: Int -> [[Regression Double]] -> Vector -> [Expr (Regression Double)] -> Population (Regression Double) RegStats
 fitnessReg nPop xss ys exprs = let n  = nPop `div` (2*numCapabilities)
                                    zs = parMapChunk n (exprToMatrix xss) exprs
-                               in  filter notInfNan $ zipWith (regress xss ys) exprs zs
+                               in  filter notInfNan $ zipWith (regress ys) exprs zs
 
-fitnessTest :: [[Double]] -> Vector -> Solution Double RegStats -> RegStats
+fitnessTest :: [[Regression Double]] -> Vector -> Solution (Regression Double) RegStats -> RegStats
 fitnessTest xss ys sol = let zs = exprToMatrix xss (_expr sol)
                              ws = (_weights . _stat) sol
                              ysHat = predict zs ws 
@@ -195,8 +193,8 @@ fitnessTest xss ys sol = let zs = exprToMatrix xss (_expr sol)
                              else RS inf inf inf inf (V.singleton 0.0)
                              
 
-regress :: [[Double]] -> Vector -> Expr Double -> LA.Matrix Double -> Solution Double RegStats
-regress xss ys expr zss 
+regress :: Vector -> Expr (Regression Double) -> LA.Matrix Double -> Solution (Regression Double) RegStats
+regress ys expr zss 
   | LA.rows zss == 0 = let rs  = RS inf inf inf inf (V.singleton 0.0)
                            inf = 1/0
                        in  Sol expr (_rmse rs ) rs

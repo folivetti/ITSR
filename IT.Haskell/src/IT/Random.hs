@@ -32,27 +32,27 @@ sampleInterMax :: Int               -- ^ problem dimension
                -> Int               -- ^ minimum exponent            
                -> Int               -- ^ maximum exponent
                -> Rnd Interaction   -- ^ Random interaction generator
-sampleInterMax 0   _      _      _      = return One
+sampleInterMax 0   _      _      _      = return (Strength [])
 sampleInterMax dim 0      minExp maxExp = do t <- sampleInterMax (dim-1) 0 minExp maxExp
-                                             return $ 0 `Times` t
+                                             return $ 0 `consInter` t
 sampleInterMax 1   budget minExp maxExp = do e <- sampleNZRng minExp maxExp
-                                             return $ e `Times` One
+                                             return $ e `consInter` (Strength [])
 sampleInterMax dim budget minExp maxExp = do b <- toss
                                              if b
                                              then do e <- sampleNZRng minExp maxExp
                                                      t <- sampleInterMax (dim-1) (budget-1) minExp maxExp
-                                                     return $ e `Times` t
+                                                     return $ e `consInter` t
                                              else do t <- sampleInterMax (dim-1) budget minExp maxExp
-                                                     return $ 0 `Times` t
+                                                     return $ 0 `consInter` t
 
 sampleInter :: Int               -- ^ problem dimension
             -> Int               -- ^ minimum exponent            
             -> Int               -- ^ maximum exponent
             -> Rnd Interaction   -- ^ Random interaction generator
-sampleInter 0   _      _      = return One
+sampleInter 0   _      _      = return (Strength [])
 sampleInter dim minExp maxExp = do e <- sampleRng minExp maxExp
                                    t <- sampleInter (dim-1) minExp maxExp
-                                   return $ e `Times` t
+                                   return $ e `consInter` t
                                           
                                           
 -- | Samples a random transformation function from a provided list of functions
@@ -66,16 +66,16 @@ sampleTerm :: Rnd (Transformation a)  -- ^ random transformation function
            -> Rnd (Term a)            -- ^ Random generator
 sampleTerm rndTrans rndInter = do t <- rndTrans
                                   i <- rndInter
-                                  return $ t `After` i
+                                  return $ Term t i
 
 -- | Create a random expression with exactly n terms
 sampleExpr :: Rnd (Term a)         -- ^ random term function
            -> Int                  -- ^ number of terms
            -> Rnd (Expr a)         -- ^ Random generator
-sampleExpr _ 0            = return Zero
+sampleExpr _ 0            = return (Expr [])
 sampleExpr rndTerm nTerms = do t <- rndTerm 
                                e <- sampleExpr rndTerm (nTerms-1)
-                               return $ t `Plus` e
+                               return $ t `consTerm` e
 
 -- | Create a random population of n expressions with varying number of terms
 samplePop :: Int                   -- population size

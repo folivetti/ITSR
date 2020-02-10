@@ -69,16 +69,16 @@ initialPop dim maxTerms nPop rndTerm fit = fit <$> initialPop' dim maxTerms nPop
 -- the same size as the original population.
 --
 tournament :: Population a b -> Int -> Rnd (Population a b)
-tournament p 0 = return [] -- Empty
+tournament p 0 = return [] 
 tournament p n = do pi <- chooseOne p
                     p' <- tournament p (n-1)
-                    return $ pi:p' -- pi :<| p' 
+                    return $ pi:p' 
   where
     chooseOne :: Population a b -> Rnd (Solution a b)
     chooseOne p = do let n = length p
                      c1 <- sampleTo (n-1)
                      c2 <- sampleTo (n-1)
-                     return (min (p !! c1) (p !! c2)) -- (min (p `S.index` c1) (p `S.index` c2))
+                     return (min (p !! c1) (p !! c2)) 
 
 -- | Perform one iterative step of ITEA
 step :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Int -> Population a b -> Rnd (Population a b)

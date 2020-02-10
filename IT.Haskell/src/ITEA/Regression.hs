@@ -27,8 +27,9 @@ runITEAReg (D tr te) mcfg output nPop nGens = do
   g <- initSMGen
   (trainX, trainY) <- parseFile <$> readFile tr
   (testX,  testY ) <- parseFile <$> readFile te
-  let fitTrain = fitnessReg nPop (LA.toLists trainX) trainY          
-      fitTest  = fitnessTest (LA.toLists testX ) testY
+  let toRegMtx = map (map Reg) .  LA.toLists
+      fitTrain = fitnessReg nPop (toRegMtx trainX) trainY          
+      fitTest  = fitnessTest (toRegMtx testX ) testY
       dim      = LA.cols trainX
       (mutFun, rndTerm)   = withMutation mcfg dim
       p0       = initialPop dim (getMaxTerms mcfg) nPop rndTerm fitTrain

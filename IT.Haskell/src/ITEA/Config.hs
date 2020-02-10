@@ -1,4 +1,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeApplications #-}
+
 module ITEA.Config where
 
 import System.Directory
@@ -11,6 +13,9 @@ import IT.Algorithms
 import IT.Mutation
 import IT.Regression
 import IT.Random
+import IT.Knowledge
+
+import Numeric.Interval
 
 import qualified Numeric.LinearAlgebra as LA
 import Control.Monad.State
@@ -62,7 +67,7 @@ nonzeroExps :: Int -> UncheckedMutationCfg
 nonzeroExps x = mempty { _nzExp = Has x }
 
 transFunctions :: Funcs -> UncheckedMutationCfg
-transFunctions  fs  = mempty { _transFun = Has fs    }
+transFunctions  fs  = mempty { _transFun = Has fs }
 
 instance Valid UncheckedMutationCfg MutationCfg where
   -- validateConfig :: UncheckedMutationCfg -> MutationCfg
@@ -85,7 +90,7 @@ parseFile css = ML.splitToXY . LA.fromLists $ map (map read) dat
   where
     dat = map (splitOn ",") $ lines css
     
-withMutation :: MutationCfg -> Int -> (Mutation Double, Rnd (Term Double))
+withMutation :: MutationCfg -> Int -> (Mutation (Regression Double), Rnd (Term (Regression Double)))
 withMutation (MCfg elim tlim nzExp transfun) dim = (mutFun elim tlim rndTerm rndTrans, rndTerm)
   where
     trans FLinear = regLinear
@@ -119,7 +124,7 @@ instance Valid UncheckedDatasets Datasets where
 -- | Output configuration  
 data Output = Screen | PartialLog String | FullLog String deriving Read
 
-getBest :: Int  -> [Population Double RegStats] -> Solution Double RegStats
+getBest :: Int  -> [Population (Regression Double) RegStats] -> Solution (Regression Double) RegStats
 getBest n p     = minimum $ getAllBests n p
 getAllBests n p = map minimum (take n p) 
 
@@ -156,7 +161,7 @@ createIfDoesNotExist fname = do
   if isCreated then hPutStrLn h "" else hPutStrLn h headReport
   return h
 
-genReports :: Output -> [Population Double RegStats] -> Int -> (Solution Double RegStats -> RegStats) -> IO ()
+genReports :: Output -> [Population (Regression Double) RegStats] -> Int -> (Solution (Regression Double) RegStats -> RegStats) -> IO ()
 genReports Screen pop n fitTest = do
   let best = getBest n pop
   putStrLn "Best expression applied to the training set:\n"
@@ -175,7 +180,12 @@ genReports (PartialLog dirname) pop n fitTest = do
   t0 <- getTime Realtime
   print best
   t1 <- getTime Realtime
-  
+
+  let e = _expr best
+  print "INTERVAL:"
+  print $ evalExprToList (toInterval e) $ map Reg $ repeat (-10.0 ... 10.0)
+  print "END"
+    
   let bestTest = fitTest best
       stats = concat $ intersperse "," $ [dirname, show (sec t1 - sec t0)] ++ resultsToStr best bestTest      
   
@@ -193,7 +203,7 @@ genReports (FullLog dirname) pop n fitTest = do
   t0 <- getTime Realtime
   print best
   t1 <- getTime Realtime
-  
+   
   let bestTest = fitTest best
       stats = concat $ intersperse "," $ [dirname, show (sec t1 - sec t0)] ++ resultsToStr best bestTest      
   
@@ -240,7 +250,7 @@ genEvoReport stats dirname = do
   mapM_ hClose hsWorst
   mapM_ hClose hsAvg
 
-resultsToStr :: Solution Double RegStats -> RegStats -> [String]
+resultsToStr :: Solution (Regression Double) RegStats -> RegStats -> [String]
 resultsToStr train stest = (map show statlist) ++ [show (_expr train)]
   where 
     strain = _stat train
