@@ -183,7 +183,10 @@ genReports (PartialLog dirname) pop n fitTest = do
 
   let e = _expr best
   print "INTERVAL:"
+  --print $ checkInterval (repeat (1.0 ... 10.0)) (1 ... 10) e ((LA.toList._weights._stat) best)
   print $ evalExprToList (toInterval e) $ map Reg $ repeat (-10.0 ... 10.0)
+  print $ evalDiffExpr (toInterval e) (map Reg $ repeat (1.0 ... 5.0)) (repeat (singleton 1.0))
+ --  ((map singleton.LA.toList._weights._stat) best)
   print "END"
     
   let bestTest = fitTest best

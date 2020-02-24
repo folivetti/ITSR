@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DatatypeContexts #-}
 {-|
 Module      : IT.Regression
 Description : Specific functions for Symbolic Regression
