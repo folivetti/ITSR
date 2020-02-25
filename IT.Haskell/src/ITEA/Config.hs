@@ -183,14 +183,14 @@ genReports (PartialLog dirname) pop n fitTest = do
   t1 <- getTime Realtime
 
   let e = _expr best
-  print "INTERVAL:"
+  --print "INTERVAL:"
   --print $ checkInterval (repeat (1.0 ... 10.0)) (1 ... 10) e ((LA.toList._weights._stat) best)
   --print $ sum $ evalExprToList (toInterval e) $ map Reg $ replicate 4 (-10.0 ... 10.0)
   --print $ evalDiffExpr (toInterval e) (map Reg $ repeat (1.0 ... 5.0)) (repeat (singleton 1.0))
   
-  print $ evalWithAffine e (replicate 4 (-10.0 ... 10.0)) ((LA.toList._weights._stat) best)
+  --print $ evalWithAffine e (replicate 4 (-10.0 ... 10.0)) ((LA.toList._weights._stat) best)
   --print $ evalDiffExprAff e (repeat (1.0 ... 5.0)) (repeat 1.0)
-  print "END"
+  --print "END"
     
   let bestTest = fitTest best
       stats = concat $ intersperse "," $ [dirname, show (sec t1 - sec t0)] ++ resultsToStr best bestTest      
