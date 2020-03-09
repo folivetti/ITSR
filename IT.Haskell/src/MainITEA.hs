@@ -16,7 +16,7 @@ readConfig = do
   let
     fname = case args of
               (name:_) -> name
-              _        -> error "Usage: ./it config-file-name"
+              _        -> error "Usage: ./itea config-file-name"
 
   cp <- return . forceEither =<< readfile emptyCP fname 
   let 
@@ -43,7 +43,7 @@ readConfig = do
   runITEAReg datasetCfg mutCfg log nPop nGens
 
 parse [name] = readConfig
-parse _ = putStrLn "Usage: ./it config-file-name"
+parse _ = putStrLn "Usage: ./itea config-file-name"
 
 main :: IO ()
 main = getArgs  >>= parse

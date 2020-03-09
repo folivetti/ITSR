@@ -49,6 +49,7 @@ exprInterval ws ds = foldr comb (singleton 0) (zip ws ds)
 termIntervals :: RealFloat a => Expr (Regression a) -> [Interval a] -> [Interval a]
 termIntervals expr ds = coerce $ evalExprToList (toInterval expr) (map Reg ds)
 
+checkInterval :: RealFloat a => Interval a -> [a] -> Expr (Regression a) -> [Interval a] -> Bool
 checkInterval range ws expr ds = (feasible range . exprInterval ws . termIntervals expr) ds
 
 -- ** First order derivatives

@@ -1,7 +1,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeApplications #-}
 
-module ITEA.Config where
+module FI2POP.Config where
 
 import System.Directory
 import System.IO
@@ -44,14 +44,14 @@ instance Monoid (Param a) where
   mempty = None
   
 -- | Mutation configuration
-data Funcs = FLinear | FNonLinear | FTrig | FAll deriving (Read, Show)
+data Funcs = FLinear | FNonLinear | FTrig | FAll deriving Read
 
 data UncheckedMutationCfg = UMCfg { _expLim   :: (Param (Int, Int))
                                   , _termLim  :: (Param (Int, Int))
                                   , _nzExp    :: Param Int
                                   , _transFun :: (Param Funcs)
                                   }
-data MutationCfg = MCfg (Int, Int) (Int, Int) Int Funcs deriving Show
+data MutationCfg = MCfg (Int, Int) (Int, Int) Int Funcs
 
 instance Semigroup UncheckedMutationCfg where
   (UMCfg p1 p2 p3 p4) <> (UMCfg q1 q2 q3 q4) = UMCfg (p1<>q1) (p2<>q2) (p3<>q3) (p4<>q4)
@@ -122,6 +122,26 @@ instance Valid UncheckedDatasets Datasets where
   validateConfig (UD _ None) = error "No test data was set"
   validateConfig (UD tr te) = D (fromParam tr) (fromParam te)
   
+-- | Constraint configuration
+
+data UncheckedConstraints = UC { _domains :: Param [(Interval Double)], _codomain :: Param (Interval Double), _diffcodomains :: Param [(Interval Double)] } deriving Show
+data ConstraintsCfg = C [(Interval Double)] (Interval Double) [(Interval Double)] deriving Show
+
+domains       ds =  mempty { _domains = Has ds }
+codomain      cd = mempty { _codomain = Has cd }
+diffcodomains dcds = mempty { _diffcodomains = Has dcds }
+
+instance Semigroup UncheckedConstraints where
+  (UC p1 p2 p3) <> (UC q1 q2 q3) = UC (p1<>q1) (p2<>q2) (p3<>q3)
+instance Monoid UncheckedConstraints where
+  mempty = UC mempty mempty mempty
+  
+instance Valid UncheckedConstraints ConstraintsCfg where
+  validateConfig (UC None _ _) = error "no domains set"
+  validateConfig (UC _ None _) = error "no codomain set"
+  validateConfig (UC _ _ None) = error "no derivative codomains set"
+  validateConfig (UC p1 p2 p3) = C (fromParam p1) (fromParam p2) (fromParam p3)
+
 -- | Output configuration  
 data Output = Screen | PartialLog String | FullLog String deriving Read
 

@@ -148,7 +148,7 @@ isInvalid :: Double -> Bool
 isInvalid x = isNaN x || isInfinite x
 
 isValid :: [Double] -> Bool
-isValid xs = all (not.isInvalid) xs -- && (maximum xs < 1e6) -- var > 1e-4 &&
+isValid xs = all (not.isInvalid) xs && (maximum (map abs xs) < 1e10)  -- && var > 1e-4
   where
     mu  = sum(xs) / n
     var = (*(1/n)) . sum $ map (\x -> (x-mu)*(x-mu)) xs
