@@ -148,14 +148,14 @@ isInvalid :: Double -> Bool
 isInvalid x = isNaN x || isInfinite x
 
 isValid :: [Double] -> Bool
-isValid xs = all (not.isInvalid) xs && (maximum (map abs xs) < 1e10)  -- && var > 1e-4
+isValid xs = all (not.isInvalid) xs && (maximum (map abs xs) < 1e150)  -- && var > 1e-4
   where
     mu  = sum(xs) / n
     var = (*(1/n)) . sum $ map (\x -> (x-mu)*(x-mu)) xs
     n   = fromIntegral (length xs)
 
 exprToMatrix :: [[Regression Double]] -> Expr (Regression Double) -> LA.Matrix Double
-exprToMatrix rss (Expr e) = (ML.addBiasDimension . LA.tr . LA.fromLists) $ filter isValid zss
+exprToMatrix rss (Expr e) = (ML.addBiasDimension . LA.tr . LA.fromLists) zss -- $ filter isValid zss
   where
     zss = map (\t -> map (_unReg . evalTerm t) rss) e
     
@@ -172,7 +172,7 @@ notInfNan s = not (isInfinite f || isNaN f)
   where f = _fit s
 
 parMapChunk :: Int -> (Expr (Regression Double) -> LA.Matrix Double) -> [Expr (Regression Double)] -> [LA.Matrix Double]
-parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rdeepseq
+parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rpar or rdeepseq
 
 -- | Fitness function for regression
 -- 
@@ -181,7 +181,8 @@ parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rdeepseq
 fitnessReg :: Int -> [[Regression Double]] -> Vector -> [Expr (Regression Double)] -> Population (Regression Double) RegStats
 fitnessReg nPop xss ys exprs = let n  = nPop `div` (2*numCapabilities)
                                    zs = parMapChunk n (exprToMatrix xss) exprs
-                               in  filter notInfNan $ zipWith (regress ys) exprs zs
+                                   ps = zipWith (regress ys) exprs zs
+                               in  filter notInfNan ps -- map notInfNan ps `deepseq` ps -- filter notInfNan ps
 
 fitnessTest :: [[Regression Double]] -> Vector -> Solution (Regression Double) RegStats -> RegStats
 fitnessTest xss ys sol = let zs = exprToMatrix xss (_expr sol)
@@ -199,7 +200,10 @@ regress ys expr zss
   | LA.rows zss == 0 = let rs  = RS inf inf inf inf (V.singleton 0.0)
                            inf = 1/0
                        in  Sol expr (_rmse rs ) rs
-  | otherwise        = let ws    = MLR.normalEquation_p zss ys 
+  | any (not.isValid) (LA.toLists zss) = let rs  = RS inf inf inf inf (V.singleton 0.0)
+                                             inf = 1/0
+                                         in  Sol expr (_rmse rs ) rs
+  | otherwise        = let ws    = LA.flatten $ LA.linearSolveSVD zss (LA.asColumn ys)  -- MLR.normalEquation_p
                            ysHat = predict zss ws 
                            rs    = RS (rmse ysHat ys) (mae ysHat ys) (nmse ysHat ys) (rSq ysHat ys) ws
                        in  Sol expr (_rmse rs ) rs

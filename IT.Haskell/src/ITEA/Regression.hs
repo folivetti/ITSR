@@ -32,7 +32,8 @@ runITEAReg (D tr te) mcfg output nPop nGens = do
       fitTest  = fitnessTest (toRegMtx testX ) testY
       dim      = LA.cols trainX
       (mutFun, rndTerm)   = withMutation mcfg dim
-      p0       = initialPop dim (getMaxTerms mcfg) nPop rndTerm fitTrain
+      -- p0       = initialPop dim (getMaxTerms mcfg) nPop rndTerm fitTrain
+      p0       = initialPop dim 4 nPop rndTerm fitTrain
       gens     = (p0 >>= itea mutFun fitTrain) `evalState` g
       best     = getBest nGens gens
   genReports output gens nGens fitTest

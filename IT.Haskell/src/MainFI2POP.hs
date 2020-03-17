@@ -1,3 +1,14 @@
+{-|
+Module      : FI2POP
+Description : Main program to run FI2POP with a configuration file.
+Copyright   : (c) Fabricio Olivetti de Franca, 2020
+License     : GPL-3
+Maintainer  : fabricio.olivetti@gmail.com
+Stability   : experimental
+Portability : POSIX
+
+Main program to run FI2POP with a configuration file.
+-}
 module Main where
 
 import System.Environment
@@ -10,31 +21,22 @@ import FI2POP.Config
 
 import Numeric.Interval
 
---instance (Ord a, Read a) => Read (Interval a) where
---  readsPrec _ cs = let (inf, sup) = read cs
---                   in  [((inf ... sup), "")]
-                   
+-- | converts a tuple to an Interval                 
 tuple2interval :: (Double, Double) -> Interval Double
 tuple2interval (x,y) = (x ... y)
                      
 getSetting cp cat x = forceEither $ get cp cat x
 
-readConfig :: IO ()
-readConfig = do
-  args <- getArgs
-  let
-    fname = case args of
-              (name:_) -> name
-              _        -> error "Usage: ./fi2pop config-file-name"
-
+readConfig :: String -> IO ()
+readConfig fname = do
   cp <- return . forceEither =<< readfile emptyCP fname 
   let 
-    (expmin, expmax)   = getSetting cp "Mutation" "exponents"
-    (termmin, termmax) = getSetting cp "Mutation" "termlimit"
-    nzExps             = getSetting cp "Mutation" "nonzeroexps"
-    tfuncs             = getSetting cp "Mutation" "transfunctions"
-    trainname          = getSetting cp "Dataset" "train"
-    testname           = getSetting cp "Dataset" "test"
+    (expmin, expmax)   = getSetting cp "Mutation"  "exponents"
+    (termmin, termmax) = getSetting cp "Mutation"  "termlimit"
+    nzExps             = getSetting cp "Mutation"  "nonzeroexps"
+    tfuncs             = getSetting cp "Mutation"  "transfunctions"
+    trainname          = getSetting cp "Dataset"   "train"
+    testname           = getSetting cp "Dataset"   "test"
     nPop               = getSetting cp "Algorithm" "npop"
     nGens              = getSetting cp "Algorithm" "ngens"
     log                = getSetting cp "Algorithm" "log"
@@ -60,8 +62,9 @@ readConfig = do
   f <- readFile trainname
   runFI2POPReg datasetCfg mutCfg constCfg log nPop nGens
 
-parse [name] = readConfig
-parse _ = putStrLn "Usage: ./fi2pop config-file-name"
+parse :: [String] -> IO  ()
+parse [fname] = readConfig fname
+parse _       = putStrLn "Usage: ./fi2pop config-file-name"
 
 main :: IO ()
 main = getArgs  >>= parse

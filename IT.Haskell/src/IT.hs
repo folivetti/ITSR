@@ -28,10 +28,10 @@ import qualified Numeric.LinearAlgebra as V
 -- with a /interaction/ function ('[a] -> a').
 -- The interaction function is the product of each variable to a given power.
 
-newtype Interaction   = Strength [Int]
-data Transformation a = Transformation String (a -> a)
-data (Term a)         = Term (Transformation a) Interaction
-newtype (Expr a)      = Expr [Term a]
+newtype Interaction      = Strength [Int]
+data    Transformation a = Transformation String (a -> a)
+data    Term a           = Term (Transformation a) Interaction
+newtype Expr a           = Expr [Term a]
 
 
 -- * Class 'IT' of IT-expressions

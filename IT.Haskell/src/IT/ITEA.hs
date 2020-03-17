@@ -30,8 +30,9 @@ import Control.Monad.Extra (iterateM)
 
 import Control.DeepSeq
 
-import Data.Sequence (Seq(..), (><))
-import qualified Data.Sequence as S
+--import Data.Sequence (Seq(..), (><))
+--import qualified Data.Sequence as S
+import Data.List
 
 -- ---------------------------------------------------------------------------
 
@@ -85,4 +86,7 @@ step :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Int -> Population a
 step mutFun fitFun nPop pop = do
   exprs  <- sequence $ mutFun . _expr <$> pop
   let pop' = fitFun exprs
-  tournament (pop ++ pop') nPop
+  if length pop == 0
+  then tournament pop nPop
+  else tournament (pop ++ pop') nPop
+  -- return $ take nPop $ sort (pop ++ pop')

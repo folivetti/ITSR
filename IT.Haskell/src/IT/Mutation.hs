@@ -51,14 +51,31 @@ dropTerm e = do let n = exprlen e
                 i <- sampleTo (n-1)
                 return (removeIthTerm i e)
 
-replaceTerm :: Rnd (Term a) -> Mutation a
+replaceTerm :: Int -> Int -> Mutation a
+replaceTerm minExp maxExp e = do let n = exprlen e
+                                 i <- sampleTo (n-1)
+                                 let t  = fromJust $ getIthTerm i e
+                                     e' = removeIthTerm i e
+                                 t' <- rndReplaceStrength t minExp maxExp
+                                 return (t' `consTerm` e')
+  where fromJust (Just x) = x
+  
+rndReplaceStrength :: Term a -> Int -> Int -> Rnd (Term a)
+rndReplaceStrength (Term tf (Strength ps)) minExp maxExp = 
+  do p <- sampleRng minExp maxExp
+     i <- sampleTo (length ps - 1)
+     let ps' = take i ps ++ (p : drop (i+1) ps)
+     return (Term tf (Strength ps'))
+                                    
+{-
 replaceTerm rndTerm e = do let n = exprlen e
                            i <- sampleTo (n-1)
                            t <- rndTerm
                            if   e `hasTerm` t
                            then return e
                            else return $ t `consTerm` (removeIthTerm i e)  
-                                            
+-}
+
 replaceTrans :: Rnd (Transformation a) -> Mutation a
 replaceTrans rndTrans e = do let n = exprlen e
                              i  <- sampleTo (n-1)
@@ -105,7 +122,7 @@ mutFun :: (Int, Int)             -- ^ minExp, maxExp
        -> Rnd (Expr a)           -- ^ Random Expression generator
 mutFun (minExp, maxExp) (minTerms, maxTerms) rndTerm rndTrans e = sampleFromList muts >>= id
   where
-    muts   = [replaceTerm rndTerm         e
+    muts   = [replaceTerm minExp maxExp   e
              ,replaceTrans rndTrans       e
              ,positiveInter minExp maxExp e
              ,negativeInter minExp maxExp e] ++ addMut ++ dropMut
