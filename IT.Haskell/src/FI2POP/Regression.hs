@@ -10,6 +10,7 @@ Maintainer  : fabricio.olivetti@gmail.com
 Stability   : experimental
 Portability : POSIX
 
+See ITEA.Regression
 -}
 module FI2POP.Regression where
 

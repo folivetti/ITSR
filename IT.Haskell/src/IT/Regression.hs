@@ -2,7 +2,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DatatypeContexts #-}
 {-|
 Module      : IT.Regression
 Description : Specific functions for Symbolic Regression
@@ -28,8 +27,6 @@ import IT.Algorithms
 
 import qualified Data.Vector.Storable as V
 import qualified Numeric.LinearAlgebra as LA
-import qualified MachineLearning as ML
-import qualified MachineLearning.Regression as MLR
 
 import Data.List (foldl1', foldl')
 
@@ -40,7 +37,9 @@ type Vector = LA.Vector Double
 
 -- * IT specific stuff
 
--- | Regression problem will deal with inputs of type 'Double'
+-- | Regression problem will deal with inputs that are instances of 'Floating'
+-- This makes it possible to evaluate the expression with a vector of Double
+-- or a Vector of Intervals.
 newtype Floating a => Regression a = Reg {_unReg :: a}
                          deriving (Num, Floating, Fractional)
 
@@ -54,8 +53,8 @@ instance (NFData a, Floating a) => NFData (Regression a) where
 -- | IT Instance for regression evals an expression to
 -- sum(w_i * term_i) + w0
 -- with
--- term_i = f_i(p_i(xs))
--- and p_i(xs) = prod(x^eij)
+--      term_i = f_i(p_i(xs))
+--  and p_i(xs) = prod(x^eij)
 instance Floating a => IT (Regression a) where
   itTimes xs (Strength is) = product $ zipWith pow xs is
     where
@@ -63,6 +62,7 @@ instance Floating a => IT (Regression a) where
                 then recip (x^(abs i))
                 else x^i
     
+  -- we can use the Sum Monoid to add the terms
   itAdd   = itAddDefault Sum
   itWeight x (Reg y) = Reg (realToFrac x * y)
 
@@ -118,7 +118,7 @@ rSq ysHat ys  = 1 - r/t
 
 -- | Predict a linear model
 predict :: LA.Matrix Double -> Vector -> Vector
-predict = MLR.hypothesis MLR.LeastSquares 
+predict xs w = xs LA.#> w
     
 -- | Regression statitstics
 data RegStats = RS { _rmse    :: Double
@@ -137,28 +137,38 @@ instance Show RegStats where
       names = ["RMSE: ", "MAE: ", "NMSE: ", "r^2: ", "Weights: "]
       vals  = [show r, show m, show n, show r2, show w]
 
+-- | Used to deepforce the evaluation
 instance NFData RegStats where
   rnf a = ()
   
 -- * Utility functions
     
--- | Clean the expression removing invalid terms w.r.t. the training data
--- it may return an empty expression
+-- | A value is invalid if it's wether NaN or Infinite
 isInvalid :: Double -> Bool
 isInvalid x = isNaN x || isInfinite x
 
+-- | a set of points is valid if none of its values are invalid and
+-- the maximum abosolute value is below 1e150 (to avoid overflow)
 isValid :: [Double] -> Bool
-isValid xs = all (not.isInvalid) xs && (maximum (map abs xs) < 1e150)  -- && var > 1e-4
+isValid xs = all (not.isInvalid) xs && (maximum (map abs xs) < 1e150) 
+
+{- TO BE TESTED
+ -- && var > 1e-4
   where
     mu  = sum(xs) / n
     var = (*(1/n)) . sum $ map (\x -> (x-mu)*(x-mu)) xs
     n   = fromIntegral (length xs)
+-}
 
+-- | evaluate an expression to a set of samples 
+--
+-- (1 LA.|||) adds a bias dimension
 exprToMatrix :: [[Regression Double]] -> Expr (Regression Double) -> LA.Matrix Double
-exprToMatrix rss (Expr e) = (ML.addBiasDimension . LA.tr . LA.fromLists) zss -- $ filter isValid zss
+exprToMatrix rss (Expr e) = ((1 LA.|||) . LA.tr . LA.fromLists) zss
   where
     zss = map (\t -> map (_unReg . evalTerm t) rss) e
     
+-- | Clean the expression by removing the invalid teerms
 cleanExpr :: [[Regression Double]] -> Expr (Regression Double) -> Expr (Regression Double)
 cleanExpr rss (Expr e) = Expr (cleanExpr' e)
   where
@@ -166,24 +176,29 @@ cleanExpr rss (Expr e) = Expr (cleanExpr' e)
                        then cleanExpr' e
                        else t : cleanExpr' e
     evalT t = _unReg . evalTerm t
-  
+
 notInfNan :: Solution (Regression Double) RegStats -> Bool
 notInfNan s = not (isInfinite f || isNaN f)
   where f = _fit s
 
+-- | Parallel strategy for evaluating multiple expressions
 parMapChunk :: Int -> (Expr (Regression Double) -> LA.Matrix Double) -> [Expr (Regression Double)] -> [LA.Matrix Double]
 parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rpar or rdeepseq
 
 -- | Fitness function for regression
 -- 
--- First we generate a cleaned expression without any invalid term w.r.t. the training data
--- Then 
+--  Split the dataset into twice the available cores
+--  evaluate the expressions in parallel
+--  run a Linear regression on the evaluated expressions
+--  Remove from the population any expression that leads to NaNs or Infs
 fitnessReg :: Int -> [[Regression Double]] -> Vector -> [Expr (Regression Double)] -> Population (Regression Double) RegStats
 fitnessReg nPop xss ys exprs = let n  = nPop `div` (2*numCapabilities)
                                    zs = parMapChunk n (exprToMatrix xss) exprs
                                    ps = zipWith (regress ys) exprs zs
-                               in  filter notInfNan ps -- map notInfNan ps `deepseq` ps -- filter notInfNan ps
+                               in  filter notInfNan ps
 
+-- | Evaluates an expression into the test set. This is different from `fitnessReg` since
+-- it doesn't apply OLS.
 fitnessTest :: [[Regression Double]] -> Vector -> Solution (Regression Double) RegStats -> RegStats
 fitnessTest xss ys sol = let zs = exprToMatrix xss (_expr sol)
                              ws = (_weights . _stat) sol
@@ -195,6 +210,8 @@ fitnessTest xss ys sol = let zs = exprToMatrix xss (_expr sol)
                              else RS inf inf inf inf (V.singleton 0.0)
                              
 
+-- | Applies OLS and returns a Solution
+-- if the expression is invalid, it returns Infinity as a fitness
 regress :: Vector -> Expr (Regression Double) -> LA.Matrix Double -> Solution (Regression Double) RegStats
 regress ys expr zss 
   | LA.rows zss == 0 = let rs  = RS inf inf inf inf (V.singleton 0.0)
@@ -203,7 +220,7 @@ regress ys expr zss
   | any (not.isValid) (LA.toLists zss) = let rs  = RS inf inf inf inf (V.singleton 0.0)
                                              inf = 1/0
                                          in  Sol expr (_rmse rs ) rs
-  | otherwise        = let ws    = LA.flatten $ LA.linearSolveSVD zss (LA.asColumn ys)  -- MLR.normalEquation_p
+  | otherwise        = let ws    = LA.flatten $ LA.linearSolveSVD zss (LA.asColumn ys)
                            ysHat = predict zss ws 
                            rs    = RS (rmse ysHat ys) (mae ysHat ys) (nmse ysHat ys) (rSq ysHat ys) ws
                        in  Sol expr (_rmse rs ) rs

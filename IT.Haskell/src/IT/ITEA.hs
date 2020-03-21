@@ -89,4 +89,4 @@ step mutFun fitFun nPop pop = do
   if length pop == 0
   then tournament pop nPop
   else tournament (pop ++ pop') nPop
-  -- return $ take nPop $ sort (pop ++ pop')
+  -- return $ take nPop $ sort (pop ++ pop') -- elitism, to be tested

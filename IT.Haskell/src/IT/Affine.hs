@@ -12,7 +12,7 @@ Maintainer  : fabricio.olivetti@gmail.com
 Stability   : experimental
 Portability : POSIX
 
-Definitions of IT data structure and support functions.
+Definitions of evaluation of regression expressions with Affine Arithmetic.
 -}
 module IT.Affine where
 
@@ -28,17 +28,19 @@ import Numeric.AffineForm.ExplicitRounding
 
 import Data.Coerce
 
--- * IT specific stuff
+-- | evaluates an expression with intervals using Affine arithmetic
 evalWithAffine :: (RealFloat a, ExplicitRounding a) => Expr (Regression a) -> [Interval a] -> [a] -> Interval a
 evalWithAffine expr intervals ws = evalAFM (evalAffine expr intervals ws)
 
+-- | returns the affine arithmetic of the intervals calculated with the expression
 evalAffine :: (RealFloat a, ExplicitRounding a) => Expr (Regression a) -> [Interval a] -> [a] -> AFM s (Interval a)
 evalAffine (Expr terms) is ws =
   do is' <- sequence $ map newFromInterval is
      let zs  = map (evalAffineTerm is') terms
          ws' = map singleton ws
-     return . interval $ head zs --sum $ zipWith (*) ws' zs
+     return . interval $ head zs 
 
+-- | evals the affine of a term
 evalAffineTerm :: (RealFloat a, ExplicitRounding a) => [AF t a] -> Term (Regression a) -> AF t a
 evalAffineTerm is (Term tf (Strength ints)) = applyTrans tf $ product $ zipWith pow is ints
   where 
@@ -54,6 +56,7 @@ evalAffineTerm is (Term tf (Strength ints)) = applyTrans tf $ product $ zipWith 
     applyTrans (Transformation "id" _)       = id
 
 -- ** First order derivatives
+-- counterparts of Knowledge.hs
 evalDiffExprAff :: (RealFloat a, ExplicitRounding a) => Expr (Regression a) -> [Interval a] -> [a] -> [Interval a]
 evalDiffExprAff (Expr ts) is ws = map (\ix -> evalAFM $ evalDiffExprAff' ts is ws ix) [0 .. n]
   where n = length ws - 1
@@ -93,6 +96,7 @@ evalPartialDiffInteractionsAff (Strength is) xs i
     is' = take i is ++ [pi-1] ++ drop (i+1) is
     pow x i = if i >= 0 then x^i else recip (x ^ (-i))
 
+-- | Needs some error control
 applyDiffAff :: (RealFloat a, ExplicitRounding a) => (Transformation (Regression a)) -> AF t a -> Maybe (AF t a)
 applyDiffAff (Transformation "sin" _) x = Just (cos x)
 applyDiffAff (Transformation "cos" _) x = Just (- (sin x))

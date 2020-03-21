@@ -90,7 +90,8 @@ parseFile :: String -> (LA.Matrix Double, Vector)
 parseFile css = ML.splitToXY . LA.fromLists $ map (map read) dat
   where
     dat = map (splitOn ",") $ lines css
-    
+
+-- | Creates the mutation function and also returns the random term generator (for initialization)
 withMutation :: MutationCfg -> Int -> (Mutation (Regression Double), Rnd (Term (Regression Double)))
 withMutation (MCfg elim tlim nzExp transfun) dim = (mutFun elim tlim rndTerm rndTrans, rndTerm)
   where
@@ -139,6 +140,7 @@ getAll Worst f n p = map maximum (applyStat f n p)
 getAll Avg   f n p = map mean    (applyStat f n p)
   where mean xs = sum xs / fromIntegral (length xs)
 
+-- | gets all stats at once instead of going through the list multiple times
 getAllStats :: Int -> [[RegStats]] -> [AggStats]
 getAllStats n p = map myfold (take n p)
   where
@@ -154,6 +156,7 @@ getAllStats n p = map myfold (take n p)
     avg   (RS x1 x2 x3 x4 x5) (RS y1 y2 y3 y4 _) = RS (x1 + y1) (x2 + y2) (x3 + y3) (x4 + y4) x5
     getAvg (AS a1 a2 (RS x1 x2 x3 x4 x5))  n = AS  a1 a2 (RS (x1/n) (x2/n) (x3/n) (x4/n) x5)
 
+-- | Creates a file if it does not exist
 createIfDoesNotExist fname = do
   isCreated <- doesFileExist fname
   h <- if   isCreated
@@ -162,6 +165,7 @@ createIfDoesNotExist fname = do
   if isCreated then hPutStrLn h "" else hPutStrLn h headReport
   return h
 
+-- | Generates the reports into the output
 genReports :: Output -> [Population (Regression Double) RegStats] -> Int -> (Solution (Regression Double) RegStats -> RegStats) -> IO ()
 genReports Screen pop n fitTest = do
   let best = getBest n pop
@@ -183,6 +187,7 @@ genReports (PartialLog dirname) pop n fitTest = do
   t1 <- getTime Realtime
 
   let e = _expr best
+  --  IGNORE: just testing
   --print "INTERVAL:"
   --print $ checkInterval (repeat (1.0 ... 10.0)) (1 ... 10) e ((LA.toList._weights._stat) best)
   --print $ sum $ evalExprToList (toInterval e) $ map Reg $ replicate 4 (-10.0 ... 10.0)

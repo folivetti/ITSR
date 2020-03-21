@@ -51,6 +51,12 @@ dropTerm e = do let n = exprlen e
                 i <- sampleTo (n-1)
                 return (removeIthTerm i e)
 
+-- | Create a Random Replace Term mutation
+--
+--         Replace one random strength of
+--         a random term of the expression.
+--         You need to provide the minimum 
+--         and maximum allowed exponent
 replaceTerm :: Int -> Int -> Mutation a
 replaceTerm minExp maxExp e = do let n = exprlen e
                                  i <- sampleTo (n-1)
@@ -60,6 +66,7 @@ replaceTerm minExp maxExp e = do let n = exprlen e
                                  return (t' `consTerm` e')
   where fromJust (Just x) = x
   
+-- | replaces a strength at random
 rndReplaceStrength :: Term a -> Int -> Int -> Rnd (Term a)
 rndReplaceStrength (Term tf (Strength ps)) minExp maxExp = 
   do p <- sampleRng minExp maxExp
@@ -67,15 +74,7 @@ rndReplaceStrength (Term tf (Strength ps)) minExp maxExp =
      let ps' = take i ps ++ (p : drop (i+1) ps)
      return (Term tf (Strength ps'))
                                     
-{-
-replaceTerm rndTerm e = do let n = exprlen e
-                           i <- sampleTo (n-1)
-                           t <- rndTerm
-                           if   e `hasTerm` t
-                           then return e
-                           else return $ t `consTerm` (removeIthTerm i e)  
--}
-
+-- | replaces a random transformation function
 replaceTrans :: Rnd (Transformation a) -> Mutation a
 replaceTrans rndTrans e = do let n = exprlen e
                              i  <- sampleTo (n-1)
@@ -87,6 +86,8 @@ replaceTrans rndTrans e = do let n = exprlen e
     replace 0  tr (Expr (t:e)) = Expr (change tr t : e)
     replace i  tr (Expr (t:e)) = t `consTerm` replace (i-1) tr (Expr e)
 
+-- | Combine two interactions with `op` operation (use (+) or (-)
+-- for positive and negative interaction)
 combineInter :: (Int -> Int -> Int) -> Int -> Int -> Mutation a
 combineInter op minExp maxExp e = do let n = exprlen e
                                      i <- sampleTo (n-1)
@@ -109,7 +110,7 @@ combineInter op minExp maxExp e = do let n = exprlen e
       
     minmax x = min maxExp $ max minExp $ x
 
-
+-- | Positive and Negative interaction mutations
 positiveInter = combineInter (+)
 negativeInter = combineInter (-)
 

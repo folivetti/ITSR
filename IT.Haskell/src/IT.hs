@@ -37,33 +37,51 @@ newtype Expr a           = Expr [Term a]
 -- * Class 'IT' of IT-expressions
 
 -- | The 'IT' class defines how we should
--- evaluate an expression given the task 'a'
+-- evaluate an expression given the task 'a'.
 --
--- For example, an 'IT Regression' is represented by
--- an 'Expr Double' and should be evaluated with a 
--- vector of input parameters of type 'Vector Double'.
-itTimesDefault :: (Monoid a1, Coercible a1 c) => (a2 -> a1) -> [a2] -> Interaction -> c
-itTimesDefault p xs (Strength is) = coerce . fold $ zipWith stimesMonoid is (map p xs)
-
-itAddDefault :: (Foldable t, Monoid a1, Coercible a1 b) => (a2 -> a1) -> t a2 -> b
-itAddDefault p xs                 = coerce $ foldMap p xs
-
+-- It is defined by the functions
+-- `itTimes` : given a vector of `a` and the Interaction strength, how to compute the product
+-- `itAdd`   : given a vector of `a`, how to add the terms together
+-- `itWeight` : how to apply the weight into the terms
+--
+-- This default for this instance is to provide a Semiring instance for the product
+-- a Semiring instance for the sum, and a way to use the weights (optional).
 class IT a where
   itTimes  :: [a] -> Interaction -> a
   itAdd    :: [a] -> a
   itWeight :: Double -> a -> a
 
+-- | The Coercible instance is just to make the unboxing of
+-- the type faster. It is a safe operation.
+--
+
+-- given a type a2, provide a function to convert t o a Monoid a1 and apply a fold
+-- after applying `stimes` of the interaction strengths. This only works for
+-- positive interactions
+itTimesDefault :: (Monoid a1, Coercible a1 c) => (a2 -> a1) -> [a2] -> Interaction -> c
+itTimesDefault p xs (Strength is) = coerce . fold $ zipWith stimesMonoid is (map p xs)
+
+-- given a type a2, provides a function to convert to a Monoid a1 and apply fold
+itAddDefault :: (Foldable t, Monoid a1, Coercible a1 b) => (a2 -> a1) -> t a2 -> b
+itAddDefault p xs                 = coerce $ foldMap p xs
+
+-- to evaluate a term we apply the transformation function
+-- to the product Monoid of interaction
 evalTerm :: IT a => Term a -> [a] -> a
 evalTerm (Term (Transformation _ f) is) xs = f (itTimes xs is)
 
+-- | evaluates the expression into a list of terms
+-- in case the evaluated values are needed
 evalExprToList :: (IT a) => Expr a -> [a] -> [a]
 evalExprToList (Expr es) xs = map (\t -> evalTerm t xs) es
 
+-- | evaluates an expression by evaluating the terms into a list
+-- applying the weight and summing the results.
 evalExpr :: (IT a) => Expr a -> [a] -> [Double] -> a
-evalExpr (Expr es) xs ws = itAdd $ zipWith itWeight ws (map (\t -> evalTerm t xs) es)
+evalExpr es xs ws = itAdd $ zipWith itWeight ws (evalExprToList es xs)
   
 -- * 'Show' and 'Eq' instances
-
+-- obs.: maybe this makes more sense specifically for each instance of IT
 instance (Show a) => Show (Expr a) where
   show (Expr es) = intercalate " + " $ map show es
 
@@ -73,14 +91,18 @@ instance Show a => Show (Term a) where
 instance Show a => Show (Transformation a) where
   show (Transformation s _) = s
 
+-- | TODO: replace variable names with provided labels
 instance Show Interaction where
   show (Strength es) = intercalate "*" $ filter (/="") $ zipWith show' [0..] es
     where show' n 0 = ""
           show' n 1 = 'x' : show n
           show' n e = ('x' : show n) ++ "^(" ++  show e ++ ")"
           
+-- | Two terms are equal if their interactions are equal
+-- this instance is used for the mutation operation to avoid adding 
+-- two equal interactions on the same expression. 
 instance Eq (Term a) where
-  (Term tr1 (Strength i1)) == (Term tr2 (Strength  i2)) = i1 == i2
+  (Term tr1 (Strength i1)) == (Term tr2 (Strength  i2)) = (i1 == i2)
 
 instance Eq (Transformation a) where
   (Transformation s1 _) == (Transformation s2 _) = s1==s2
@@ -88,7 +110,6 @@ instance Eq (Transformation a) where
 -- * Utility functions
 
 -- | Remove duplicated terms
--- implementation similar to 'nub'
 uniqueTerms :: Expr a -> Expr a
 uniqueTerms (Expr ts) = Expr (nub ts)
 
@@ -107,6 +128,8 @@ getIthTerm ix (Expr e) = if   ix >= length e
                          then Nothing
                          else Just (e !! ix)
 
-exprlen (Expr e) = length e
+exprlen (Expr e)          = length e
+
 consTerm t (Expr e) = Expr (t:e)
+
 consInter i (Strength is) = Strength (i:is)

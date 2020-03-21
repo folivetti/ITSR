@@ -51,7 +51,9 @@ instance (NFData a, NFData b) => NFData (Solution a b) where
 -- a fitness function should preferably compute in parallel
 type Fitness    a b = [Expr a] -> Population a b -- (Expr a, Double, b)
 
-type Constraint a b =  Solution a b  -> Double -- how many violations
+-- | 'Constraint' represents a function the calculates how
+-- many constraint violations there are for a  given solution
+type Constraint a b =  Solution a b  -> Double 
 
 -- | 'Mutation' function with signature 'Solution a b -> Rnd (Solution a b)'
 type Mutation   a   = Expr a -> Rnd (Expr a)

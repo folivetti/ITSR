@@ -24,6 +24,7 @@ import Data.Ord
 
 import Control.Monad.State
 import System.Random.SplitMix
+import System.Random.Shuffle
 import System.Environment
 
 
@@ -53,7 +54,7 @@ runITEARegCV fitTrain fitTest dim mcfg nPop nGens = do
 
   -- run ITEA with given configuration
   let (mutFun, rndTerm)  = withMutation mcfg dim
-      p0                 = initialPop dim (getMaxTerms mcfg) nPop rndTerm fitTrain
+      p0                 = initialPop dim 4 nPop rndTerm fitTrain
       gens               = (p0 >>= itea mutFun fitTrain) `evalState` g
       best               = getBest nGens gens
   (return._rmse.fitTest)  best
@@ -64,14 +65,21 @@ runCfg dname fold mutCfg = do
   let fname = "datasets/" ++ dname ++ "/" ++ dname ++ "-train-" ++ show 0 ++ ".dat" 
   
   (trainX, trainY) <- parseFile <$> readFile fname
-
+  g <- initSMGen
+  
   let nRows = LA.rows trainX
       dim   = LA.cols trainX
       
-      trY   = LA.subVector 0 (nRows `div` 2) trainY
-      tvY   = LA.subVector (nRows `div` 2) (nRows `div` 2 + nRows `mod` 2) trainY
-      trX   = trainX LA.?? (LA.Take (nRows `div` 2), LA.All)
-      tvX   = trainX LA.?? (LA.Drop (nRows `div` 2), LA.All)
+      -- random 2-cv split
+      rndix = shuffle' [0 .. (nRows-1)] nRows g
+      idxs1 = take (nRows `div` 2) rndix
+      idxs2 = drop (nRows `div` 2) rndix
+      
+      -- tr = training, tv = validation
+      trY   = LA.flatten $ (LA.asColumn trainY) LA.?? (LA.Pos (LA.idxs idxs1), LA.All)
+      tvY   = LA.flatten $ (LA.asColumn trainY) LA.?? (LA.Pos (LA.idxs idxs2), LA.All)
+      trX   = trainX LA.?? (LA.Pos (LA.idxs idxs1), LA.All)
+      tvX   = trainX LA.?? (LA.Pos (LA.idxs idxs2), LA.All)
       
       toRegMtx = map (map Reg) .  LA.toLists
       
@@ -82,7 +90,7 @@ runCfg dname fold mutCfg = do
       fitTest2  = fitnessTest (toRegMtx trX) trY
       
       runFive = sequence . replicate 5
-      
+  
   rmses1 <- runFive (runITEARegCV fitTrain1 fitTest1 dim mutCfg 100 100)
   rmses2 <- runFive (runITEARegCV fitTrain2 fitTest2 dim mutCfg 100 100)
 

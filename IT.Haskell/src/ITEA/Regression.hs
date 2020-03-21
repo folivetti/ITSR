@@ -22,20 +22,27 @@ import qualified Numeric.LinearAlgebra as LA
 import Control.Monad.State
 import System.Random.SplitMix
 
-runITEAReg :: Datasets -> MutationCfg -> Output ->  Int -> Int -> IO ()
+-- | Support function for running ITEA
+runITEAReg :: Datasets     -- training and test datasets
+           -> MutationCfg  -- configuration of mutation operators
+           -> Output       -- output to Screen | PartialLog filename | FullLog filename
+           -> Int          -- population size
+           -> Int          -- generations
+           -> IO ()
 runITEAReg (D tr te) mcfg output nPop nGens = do
   g <- initSMGen
   (trainX, trainY) <- parseFile <$> readFile tr
   (testX,  testY ) <- parseFile <$> readFile te
-  let toRegMtx = map (map Reg) .  LA.toLists
-      fitTrain = fitnessReg nPop (toRegMtx trainX) trainY          
-      fitTest  = fitnessTest (toRegMtx testX ) testY
+  let 
+      toRegMtx = map (map Reg) .  LA.toLists                 -- apply Reg to each element of a Matrix
+      fitTrain = fitnessReg nPop (toRegMtx trainX) trainY    -- create the fitness function
+      fitTest  = fitnessTest (toRegMtx testX ) testY         -- create the fitness for the test set
       dim      = LA.cols trainX
-      (mutFun, rndTerm)   = withMutation mcfg dim
+      (mutFun, rndTerm)   = withMutation mcfg dim            -- create the mutation function
       -- p0       = initialPop dim (getMaxTerms mcfg) nPop rndTerm fitTrain
-      p0       = initialPop dim 4 nPop rndTerm fitTrain
-      gens     = (p0 >>= itea mutFun fitTrain) `evalState` g
-      best     = getBest nGens gens
-  genReports output gens nGens fitTest
+      p0       = initialPop dim 4 nPop rndTerm fitTrain      -- initialize de population
+      gens     = (p0 >>= itea mutFun fitTrain) `evalState` g -- evaluate a lazy stream of infinity generations
+      best     = getBest nGens gens                          -- get the best solution of the first gens generations
+  genReports output gens nGens fitTest                       -- create the report
   
 
