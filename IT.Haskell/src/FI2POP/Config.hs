@@ -127,8 +127,8 @@ instance Valid UncheckedDatasets Datasets where
 data UncheckedConstraints = UC { _domains :: Param [(Interval Double)], _codomain :: Param (Interval Double), _diffcodomains :: Param [(Interval Double)] } deriving Show
 data ConstraintsCfg = C [(Interval Double)] (Interval Double) [(Interval Double)] deriving Show
 
-domains       ds =  mempty { _domains = Has ds }
-codomain      cd = mempty { _codomain = Has cd }
+domains       ds   = mempty { _domains = Has ds }
+codomain      cd   = mempty { _codomain = Has cd }
 diffcodomains dcds = mempty { _diffcodomains = Has dcds }
 
 instance Semigroup UncheckedConstraints where
