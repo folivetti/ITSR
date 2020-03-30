@@ -31,15 +31,24 @@ toInterval :: (Floating a, RealFloat b)  => Expr (Regression a) -> Expr (Regress
 toInterval (Expr [])    = Expr []
 toInterval (Expr (Term ts is:e)) = (Term (convert ts) is) `consTerm` toInterval (Expr e)
   where
-    convert (Transformation "sin" _)      = regSin
-    convert (Transformation "cos" _)      = regCos
-    convert (Transformation "tan" _)      = regTan
+    convert (Transformation "sin" _)      = (Transformation "sin" (protected sin))
+    convert (Transformation "cos" _)      = (Transformation "cos" (protected cos))
+    convert (Transformation "tan" _)      = (Transformation "tan" (protected tan))
     convert (Transformation "tanh" _)     = regTanh
     convert (Transformation "sqrt" _)     = regSqrt
     convert (Transformation "sqrt.abs" _) = regAbsSqrt
     convert (Transformation "log" _)      = regLog
     convert (Transformation "exp" _)      = regExp
     convert (Transformation "id" _)       = Transformation "id" id
+    
+nanInterval :: RealFloat a => Regression (Interval a)
+nanInterval = Reg $ singleton (0/0)
+
+hasInf :: RealFloat a => Regression (Interval a) -> Bool
+hasInf x = any isInfinite [inf (_unReg x), sup (_unReg x)]
+    
+protected :: RealFloat a => (Regression (Interval a) -> Regression (Interval a)) -> Regression (Interval a) -> Regression (Interval a)
+protected f x = if hasInf x then nanInterval else f x
 
 -- | Check if one interval is inside the other
 feasible :: RealFloat a => Interval a -> Interval a -> Bool
@@ -48,7 +57,7 @@ feasible range i = i `isSubsetOf` range
 -- | Calculates the interval of an expression given the vector
 -- of weights and the interval of each term of the expression
 exprInterval :: RealFloat a => [a] -> [Interval a] -> Interval a
-exprInterval ws ds = foldr comb (singleton 0) (zip ws ds)
+exprInterval (b:ws) ds = singleton b + foldr comb (singleton 0) (zip ws ds)
   where
     comb (w,i) s = s + singleton w * i
 
@@ -61,8 +70,8 @@ checkInterval :: RealFloat a => Interval a -> [a] -> Expr (Regression a) -> [Int
 checkInterval range ws expr ds = (feasible range . exprInterval ws . termIntervals expr) ds
 
 -- ** First order derivatives
-evalDiffExpr :: RealFloat a => Expr (Regression a) -> [Regression a] -> [a] -> [Regression a]
-evalDiffExpr (Expr ts) xs ws = foldr1 (zipWith (+)) wdtss
+evalDiffExpr :: RealFloat a => Expr (Regression (Interval a)) -> [Regression (Interval a)] -> [(Interval a)] -> [Regression (Interval a)]
+evalDiffExpr (Expr ts) xs (w:ws) = foldr1 (zipWith (+)) wdtss
   where 
     dtss  = map (`evalDiffTerms` xs) ts
     wdtss = zipWith multWeight ws dtss
@@ -71,10 +80,10 @@ evalDiffExpr (Expr ts) xs ws = foldr1 (zipWith (+)) wdtss
 
 -- | Tries to apply the outer partial derivative
 -- returns Nothing in case of error
-applyDiff :: RealFloat a => (Transformation (Regression a)) -> Regression a -> Maybe (Regression a)
-applyDiff (Transformation "sin" _) x      = Just (cos x)
-applyDiff (Transformation "cos" _) x      = Just (- (sin x))
-applyDiff (Transformation "tan" _) x      = Just ((recip . (^2) . cos) x)
+applyDiff :: RealFloat a => (Transformation (Regression (Interval a))) -> Regression (Interval a) -> Maybe (Regression (Interval a))
+applyDiff (Transformation "sin" _) x      = Just ((protected cos) x)
+applyDiff (Transformation "cos" _) x      = Just (- ((protected sin) x))
+applyDiff (Transformation "tan" _) x      = Just ((recip . (^2) . (protected cos)) x)
 applyDiff (Transformation "tanh" _) x     = Just ((recip . (^2) . cosh) x)
 applyDiff (Transformation "sqrt" _) x     = Just ((recip . (*2) . sqrt) x)
 applyDiff (Transformation "sqrt.abs" f) x = Just (x / (2 * (abs x)**(1.5)))
@@ -83,7 +92,7 @@ applyDiff (Transformation "exp" _) x      = Just (exp x)
 applyDiff _ x = Nothing
 
 -- | Evaluate the partial derivatives of each term
-evalDiffTerms :: RealFloat a => Term (Regression a) -> [Regression a] -> [Regression a]
+evalDiffTerms :: RealFloat a => Term (Regression (Interval a)) -> [Regression (Interval a)] -> [Regression (Interval a)]
 evalDiffTerms t@(Term tf is) xs = 
   case dt of
     Nothing -> di
@@ -94,16 +103,16 @@ evalDiffTerms t@(Term tf is) xs =
       di = evalDiffInteractions is xs
 
 -- | Evals the partial derivative of a term
-evalDiffTerm :: RealFloat a => Term (Regression a) -> [Regression a] -> Maybe (Regression a)
+evalDiffTerm :: RealFloat a => Term (Regression (Interval a)) -> [Regression (Interval a)] -> Maybe (Regression (Interval a))
 evalDiffTerm (Term tf is) xs = applyDiff tf (itTimes xs is)
 
 -- | Evals the partial derivatives of the interactions
-evalDiffInteractions :: RealFloat a => Interaction -> [Regression a] -> [Regression a]
+evalDiffInteractions :: RealFloat a => Interaction -> [Regression (Interval a)] -> [Regression (Interval a)]
 evalDiffInteractions ints@(Strength is) xs = map (evalPartialDiffInteractions ints xs) [0 .. n]
   where n = length is - 1
 
 -- | Evals the partial derivative of the interaction w.r.t. the i-th variable
-evalPartialDiffInteractions :: RealFloat a => Interaction -> [Regression a] -> Int -> Regression a
+evalPartialDiffInteractions :: RealFloat a => Interaction -> [Regression (Interval a)] -> Int -> Regression (Interval a)
 evalPartialDiffInteractions ints@(Strength is) xs i 
   | pi == 0   = 0
   | otherwise = fromIntegral pi * itTimes xs ints' 

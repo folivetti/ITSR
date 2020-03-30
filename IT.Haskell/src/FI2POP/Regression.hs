@@ -53,7 +53,7 @@ constraintFunSliced domain codomain diffCodomains (Sol e f s)
         inDiffs     = zipWith isSubsetOf diffDomains diffCodomains
         
         violated    = filter not (inDomain : inDiffs)
-    in  fromIntegral $ length violated
+    in  fromIntegral $ (length violated + length (filter (==empty) (funDomains:diffDomains)))
     
 -- | creates the constraint evaluation function
 constraintFun :: [(Interval Double)] 
@@ -66,8 +66,9 @@ constraintFun domain codomain diffcodomains (Sol e f s)
         diffdomains = map _unReg $ evalDiffExpr (toInterval e) (map Reg $ domain) (map singleton ws)
         inDomain    = checkInterval codomain ws e domain
         inDiffs     = zipWith isSubsetOf diffdomains diffcodomains
+        calcDomains = exprInterval ws . termIntervals e
         violated    = filter not (inDomain : inDiffs)
-    in  fromIntegral $ length violated
+    in  fromIntegral $ (length violated + length (filter (==empty) (calcDomains domain:diffdomains)))
     
 runFI2POPReg :: Datasets -> MutationCfg -> ConstraintsCfg -> Output ->  Int -> Int -> Bool -> IO ()
 runFI2POPReg (D tr te) mcfg (C ds cd cds) output nPop nGens useSlice = do
@@ -89,6 +90,10 @@ runFI2POPReg (D tr te) mcfg (C ds cd cds) output nPop nGens useSlice = do
       feas     = map fst gens
       infeas   = map snd gens
       best     = getBest nGens feas
+  print $ (exprInterval (LA.toList $ _weights (_stat best))) $ (termIntervals (_expr best) ds)
   genReports output feas nGens fitTest
+  --let p0g = p0 `evalState` g
+  --    ftest (Sol e f s) = (termIntervals e ds) -- exprInterval (LA.toList._weights $ s)
+  --mapM_ (\s -> sequence [print s, print (ftest s)]) p0g
   
 
