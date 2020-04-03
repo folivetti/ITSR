@@ -133,3 +133,6 @@ exprlen (Expr e)          = length e
 consTerm t (Expr e) = Expr (t:e)
 
 consInter i (Strength is) = Strength (i:is)
+
+
+getListOfTerms (Expr ts) = ts

@@ -1,3 +1,4 @@
+{-# LANGUAGE DatatypeContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeApplications #-}
@@ -32,6 +33,7 @@ import Data.List (foldl1', foldl')
 
 import Control.Parallel.Strategies
 import Control.DeepSeq
+import Data.List.Split
 
 type Vector = LA.Vector Double
 
@@ -183,7 +185,8 @@ notInfNan s = not (isInfinite f || isNaN f)
 
 -- | Parallel strategy for evaluating multiple expressions
 parMapChunk :: Int -> (Expr (Regression Double) -> LA.Matrix Double) -> [Expr (Regression Double)] -> [LA.Matrix Double]
-parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rpar or rdeepseq
+parMapChunk n f xs = concatMap (map f) (chunksOf n xs) `using` parList rdeepseq-- 
+--parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rpar or rdeepseq
 
 -- | Fitness function for regression
 -- 

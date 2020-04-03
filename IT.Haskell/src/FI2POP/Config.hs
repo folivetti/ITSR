@@ -23,7 +23,7 @@ import Control.Monad.State
 import System.Random.SplitMix
 import qualified MachineLearning as ML
 import Data.List.Split (splitOn)
-import Data.List (intersperse, foldl')
+import Data.List (intersperse, foldl', intercalate)
 
 import Control.Parallel.Strategies
 import Control.DeepSeq
@@ -277,9 +277,15 @@ genEvoReport stats dirname = do
   mapM_ hClose hsAvg
 
 resultsToStr :: Solution (Regression Double) RegStats -> RegStats -> [String]
-resultsToStr train stest = (map show statlist) ++ [show (_expr train)]
+resultsToStr train stest = (map show statlist) ++ [exprWithWeight]
   where 
-    strain = _stat train
+    exprWithWeight     = w ++ " + " ++ exprWithoutBias
+    exprWithoutBias    = intercalate " + " $ zipWith insertWeight ws (map show ts)
+    insertWeight wi ti = wi ++ "*(" ++ ti ++ ")"
+    
+    ts       = getListOfTerms (_expr train)
+    (w:ws)   =  map show.LA.toList._weights._stat $ train
+    strain   = _stat train
     statlist = [_rmse strain, _rmse stest, _mae strain, _mae stest, _nmse strain, _nmse stest, _r2 strain, _r2 stest]
 
 headReport = "name,time,RMSE_train,RMSE_test,MAE_train,MAE_test,NMSE_train,NMSE_test,r2_train,r2_test,expr"

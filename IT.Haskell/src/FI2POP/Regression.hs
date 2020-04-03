@@ -26,23 +26,29 @@ import System.Random.SplitMix
 import Numeric.Interval
 
 -- | slices the domain
-sliceDomains :: [(Interval Double)] -> [[(Interval Double)]]
-sliceDomains domains = [domains]
-
-constraintFunSliced :: [(Interval Double)] 
+sliceDomains :: [(Interval Double)] -> Double -> Int -> [[(Interval Double)]]
+sliceDomains domains max_width max_depth = sequence $ map sliceSingleDomain domains
+  where
+    sliceSingleDomain domain = (iterate nextDepth [domain]) !! max_depth
+    nextDepth xs             = concatMap splitInterval xs
+    splitInterval x          = if   width x <= max_width
+                               then [x]
+                               else [(inf x ... m), (m ... sup x)]
+      where m = midpoint x
+    
+constraintFunSliced ::[ [(Interval Double)] ]
               -> (Interval Double) 
               -> [(Interval Double)] 
               -> Solution (Regression Double) RegStats 
               -> Double
-constraintFunSliced domain codomain diffCodomains (Sol e f s)
+constraintFunSliced slices codomain diffCodomains (Sol e f s)
   = let ws          = (LA.toList._weights) s
         e'          = toInterval e
         ws'         = map singleton ws
         
         calcDiffDomains ds = evalDiffExpr e' (map Reg $ ds) ws'
         calcDomains        = exprInterval ws . termIntervals e
-        
-        slices      = sliceDomains domain
+                
         merge       = foldr hull empty
         mergeDiff   = foldr (zipWith hull) (repeat empty)
 
@@ -80,10 +86,11 @@ runFI2POPReg (D tr te) mcfg (C ds cd cds) output nPop nGens useSlice = do
       fitTest  = fitnessTest (toRegMtx testX ) testY
       dim      = LA.cols trainX
       (mutFun, rndTerm)   = withMutation mcfg dim
+      slices   = sliceDomains ds 0.2 4
 
       constFun      = if   useSlice
                       then constraintFun ds cd cds
-                      else constraintFunSliced  ds cd cds
+                      else constraintFunSliced  slices cd cds
       
       p0       = initialPop dim (getMaxTerms mcfg) nPop rndTerm fitTrain
       gens     = (p0 >>= fi2pop mutFun fitTrain constFun) `evalState` g

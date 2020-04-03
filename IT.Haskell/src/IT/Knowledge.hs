@@ -22,12 +22,14 @@ import IT.Regression
 import Numeric.Interval
 import Data.Coerce
 
+type IntervalReg a = Regression (Interval a)
+
 -- * IT specific stuff
 
 -- | converts an expression of any Floating type to Interval
 -- this is done to convince  the compiler that the same expression can 
 -- also be used for Intervals
-toInterval :: (Floating a, RealFloat b)  => Expr (Regression a) -> Expr (Regression (Interval b))
+toInterval :: (Floating a, RealFloat b)  => Expr (Regression a) -> Expr (IntervalReg b)
 toInterval (Expr [])    = Expr []
 toInterval (Expr (Term ts is:e)) = (Term (convert ts) is) `consTerm` toInterval (Expr e)
   where
@@ -41,13 +43,13 @@ toInterval (Expr (Term ts is:e)) = (Term (convert ts) is) `consTerm` toInterval 
     convert (Transformation "exp" _)      = regExp
     convert (Transformation "id" _)       = Transformation "id" id
     
-nanInterval :: RealFloat a => Regression (Interval a)
+nanInterval :: RealFloat a => IntervalReg a
 nanInterval = Reg $ singleton (0/0)
 
-hasInf :: RealFloat a => Regression (Interval a) -> Bool
+hasInf :: RealFloat a => IntervalReg a -> Bool
 hasInf x = any isInfinite [inf (_unReg x), sup (_unReg x)]
     
-protected :: RealFloat a => (Regression (Interval a) -> Regression (Interval a)) -> Regression (Interval a) -> Regression (Interval a)
+protected :: RealFloat a => (IntervalReg a -> IntervalReg a) -> IntervalReg a -> IntervalReg a
 protected f x = if hasInf x then nanInterval else f x
 
 -- | Check if one interval is inside the other
@@ -70,7 +72,7 @@ checkInterval :: RealFloat a => Interval a -> [a] -> Expr (Regression a) -> [Int
 checkInterval range ws expr ds = (feasible range . exprInterval ws . termIntervals expr) ds
 
 -- ** First order derivatives
-evalDiffExpr :: RealFloat a => Expr (Regression (Interval a)) -> [Regression (Interval a)] -> [(Interval a)] -> [Regression (Interval a)]
+evalDiffExpr :: RealFloat a => Expr (IntervalReg a) -> [IntervalReg a] -> [(Interval a)] -> [IntervalReg a]
 evalDiffExpr (Expr ts) xs (w:ws) = foldr1 (zipWith (+)) wdtss
   where 
     dtss  = map (`evalDiffTerms` xs) ts
@@ -80,7 +82,7 @@ evalDiffExpr (Expr ts) xs (w:ws) = foldr1 (zipWith (+)) wdtss
 
 -- | Tries to apply the outer partial derivative
 -- returns Nothing in case of error
-applyDiff :: RealFloat a => (Transformation (Regression (Interval a))) -> Regression (Interval a) -> Maybe (Regression (Interval a))
+applyDiff :: RealFloat a => (Transformation (IntervalReg a)) -> IntervalReg a -> Maybe (IntervalReg a)
 applyDiff (Transformation "sin" _) x      = Just ((protected cos) x)
 applyDiff (Transformation "cos" _) x      = Just (- ((protected sin) x))
 applyDiff (Transformation "tan" _) x      = Just ((recip . (^2) . (protected cos)) x)
@@ -92,7 +94,7 @@ applyDiff (Transformation "exp" _) x      = Just (exp x)
 applyDiff _ x = Nothing
 
 -- | Evaluate the partial derivatives of each term
-evalDiffTerms :: RealFloat a => Term (Regression (Interval a)) -> [Regression (Interval a)] -> [Regression (Interval a)]
+evalDiffTerms :: RealFloat a => Term (IntervalReg a) -> [IntervalReg a] -> [IntervalReg a]
 evalDiffTerms t@(Term tf is) xs = 
   case dt of
     Nothing -> di
@@ -103,16 +105,16 @@ evalDiffTerms t@(Term tf is) xs =
       di = evalDiffInteractions is xs
 
 -- | Evals the partial derivative of a term
-evalDiffTerm :: RealFloat a => Term (Regression (Interval a)) -> [Regression (Interval a)] -> Maybe (Regression (Interval a))
+evalDiffTerm :: RealFloat a => Term (IntervalReg a) -> [IntervalReg a] -> Maybe (IntervalReg a)
 evalDiffTerm (Term tf is) xs = applyDiff tf (itTimes xs is)
 
 -- | Evals the partial derivatives of the interactions
-evalDiffInteractions :: RealFloat a => Interaction -> [Regression (Interval a)] -> [Regression (Interval a)]
+evalDiffInteractions :: RealFloat a => Interaction -> [IntervalReg a] -> [IntervalReg a]
 evalDiffInteractions ints@(Strength is) xs = map (evalPartialDiffInteractions ints xs) [0 .. n]
   where n = length is - 1
 
 -- | Evals the partial derivative of the interaction w.r.t. the i-th variable
-evalPartialDiffInteractions :: RealFloat a => Interaction -> [Regression (Interval a)] -> Int -> Regression (Interval a)
+evalPartialDiffInteractions :: RealFloat a => Interaction -> [IntervalReg a] -> Int -> IntervalReg a
 evalPartialDiffInteractions ints@(Strength is) xs i 
   | pi == 0   = 0
   | otherwise = fromIntegral pi * itTimes xs ints' 
@@ -120,3 +122,6 @@ evalPartialDiffInteractions ints@(Strength is) xs i
     pi = is !! i
     xi = xs !! i
     ints' = Strength (take i is ++ [pi-1] ++ drop (i+1) is)
+    
+    
+-- * Export to R script

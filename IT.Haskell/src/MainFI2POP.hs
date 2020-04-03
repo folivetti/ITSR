@@ -58,7 +58,7 @@ readConfig fname = do
              $  (diffcodomains . map tuple2interval) dcdm
              <> (codomain . tuple2interval) cdm
              <> (domains . map tuple2interval) dm
-    useSlice = False
+    useSlice = True
              
   f <- readFile trainname
   runFI2POPReg datasetCfg mutCfg constCfg log nPop nGens useSlice
