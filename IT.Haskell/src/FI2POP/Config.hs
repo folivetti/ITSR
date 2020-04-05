@@ -192,14 +192,17 @@ genReports Screen pop n fitTest = do
   
 genReports (PartialLog dirname) pop n fitTest = do
   createDirectoryIfMissing True dirname
-  let fname = dirname ++ "/stats.csv"
+  let fname    = dirname ++ "/stats.csv"
+      exprName = dirname ++ "/exprs.csv"
   
   hStats <- createIfDoesNotExist fname
+  hExpr  <- createIfDoesNotExist exprName
 
   let best = getBest n pop
   
   t0 <- getTime Realtime
   print best
+  print (derivativesToStr best)
   t1 <- getTime Realtime
 
   let e = _expr best
@@ -214,9 +217,13 @@ genReports (PartialLog dirname) pop n fitTest = do
     
   let bestTest = fitTest best
       stats = concat $ intersperse "," $ [dirname, show (sec t1 - sec t0)] ++ resultsToStr best bestTest      
+      exprsStr = exprsToStr best
   
   hPutStr hStats stats
+  hPutStr hExpr  exprsStr
   hClose hStats
+  hClose hExpr
+  putStrLn (replicate 100 '=')
 
 genReports (FullLog dirname) pop n fitTest = do
   createDirectoryIfMissing True dirname
@@ -277,15 +284,56 @@ genEvoReport stats dirname = do
   mapM_ hClose hsAvg
 
 resultsToStr :: Solution (Regression Double) RegStats -> RegStats -> [String]
-resultsToStr train stest = (map show statlist) ++ [exprWithWeight]
+resultsToStr train stest = (map show statlist) -- ++ [exprWithWeight]
   where 
+    strain   = _stat train
+    statlist = [_rmse strain, _rmse stest, _mae strain, _mae stest, _nmse strain, _nmse stest, _r2 strain, _r2 stest]
+
+-- * Convert derivatives to a string compatible with the R test script
+exprsToStr sol = concat $ intersperse "," $ exprWithWeight : derivativesToStr sol
+  where
     exprWithWeight     = w ++ " + " ++ exprWithoutBias
     exprWithoutBias    = intercalate " + " $ zipWith insertWeight ws (map show ts)
     insertWeight wi ti = wi ++ "*(" ++ ti ++ ")"
     
-    ts       = getListOfTerms (_expr train)
-    (w:ws)   =  map show.LA.toList._weights._stat $ train
-    strain   = _stat train
-    statlist = [_rmse strain, _rmse stest, _mae strain, _mae stest, _nmse strain, _nmse stest, _r2 strain, _r2 stest]
+    ts       = getListOfTerms (_expr sol)
+    (w:ws)   =  map show.LA.toList._weights._stat $ sol
 
-headReport = "name,time,RMSE_train,RMSE_test,MAE_train,MAE_test,NMSE_train,NMSE_test,r2_train,r2_test,expr"
+derivativesToStr :: Solution (Regression Double) RegStats -> [String]
+derivativesToStr sol = map (partialToStr (map show ws) (_expr sol)) [0 .. dim-1]
+  where
+    (w:ws) = (LA.toList._weights._stat) sol
+    dim    = getDimension (_expr sol)
+
+partialToStr ws (Expr terms) ix = intercalate " + " exprs
+  where
+    exprs                 =  map insertWeight $ filter ((/="").snd) $ zip ws (map (partialTermToStr ix) terms)
+    insertWeight (wi, ti) = wi ++ "*(" ++ ti ++ ")"
+
+partialTermToStr ix (Term tf is)
+  | isStr == ""  = ""
+  | tfStr == ""  = isStr
+  | otherwise    = tfStr ++ " * " ++ isStr
+  where
+    isStr = diffInterToStr ix is
+    tfStr = diffTransToStr tf is
+    
+diffInterToStr ix (Strength is)
+  | pi == 0   = ""
+  | show is' == "" = show pi
+  | otherwise = "(" ++ show pi ++ " * " ++ show is' ++ ")"
+    where
+      pi  = is !! ix
+      is' = Strength (take ix is ++ [pi-1] ++ drop (ix+1) is)
+
+diffTransToStr (Transformation "sin" _) is      = "cos(" ++ show is ++ ")"
+diffTransToStr (Transformation "cos" _) is      = "(-sin(" ++ show is ++ "))"
+diffTransToStr (Transformation "tan" _) is      = "(1 / (cos(" ++ show is ++ ")^2))"
+diffTransToStr (Transformation "tanh" _) is     = "(1/(cosh(" ++ show is ++ ")^2))"
+diffTransToStr (Transformation "sqrt" _) is     = "(1/(sqrt(" ++ show is ++ ")^2))"
+diffTransToStr (Transformation "sqrt.abs" f) is = "(" ++ show is ++ " / (2*abs(" ++ show is ++ ")^(1.5)))"
+diffTransToStr (Transformation "log" _) is      = "(1/" ++ show is ++ ")"
+diffTransToStr (Transformation "exp" _) is      = "exp(" ++ show is ++ ")"
+diffTransToStr _ x = ""
+
+headReport = "name,time,RMSE_train,RMSE_test,MAE_train,MAE_test,NMSE_train,NMSE_test,r2_train,r2_test"

@@ -124,4 +124,4 @@ evalPartialDiffInteractions ints@(Strength is) xs i
     ints' = Strength (take i is ++ [pi-1] ++ drop (i+1) is)
     
     
--- * Export to R script
+

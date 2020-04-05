@@ -136,3 +136,7 @@ consInter i (Strength is) = Strength (i:is)
 
 
 getListOfTerms (Expr ts) = ts
+numberOfTerms (Expr ts) = length ts
+
+getDimension (Expr ts) = getDim (head ts)
+  where getDim (Term _ (Strength is)) = length is
