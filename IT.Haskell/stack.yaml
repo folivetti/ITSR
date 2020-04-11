@@ -73,4 +73,4 @@ extra-deps:
 # compiler-check: newer-minor
 flags:
         hmatrix:
-                openblas: true
+                openblas: false

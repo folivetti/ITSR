@@ -27,8 +27,8 @@ tuple2interval (x,y) = (x ... y)
                      
 getSetting cp cat x = forceEither $ get cp cat x
 
-readConfig :: String -> IO ()
-readConfig fname = do
+readConfig :: String -> Bool -> IO ()
+readConfig fname useSlice = do
   cp <- return . forceEither =<< readfile emptyCP fname 
   let 
     (expmin, expmax)   = getSetting cp "Mutation"  "exponents"
@@ -43,6 +43,7 @@ readConfig fname = do
     cdm                = getSetting cp "Knowledge" "codomain"
     dcdm               = getSetting cp "Knowledge" "diffcodomains"
     dm                 = getSetting cp "Knowledge" "domains"
+    varnames           = getSetting cp "Knowledge" "varnames"
     
     mutCfg =  validateConfig
            $  exponents expmin expmax
@@ -58,14 +59,13 @@ readConfig fname = do
              $  (diffcodomains . map tuple2interval) dcdm
              <> (codomain . tuple2interval) cdm
              <> (domains . map tuple2interval) dm
-    useSlice = True
              
   f <- readFile trainname
-  runFI2POPReg datasetCfg mutCfg constCfg log nPop nGens useSlice
+  runFI2POPReg datasetCfg mutCfg constCfg log nPop nGens useSlice varnames
 
 parse :: [String] -> IO  ()
-parse [fname] = readConfig fname
+parse [fname, useSlice] = readConfig fname (read useSlice)
 parse _       = putStrLn "Usage: ./fi2pop config-file-name"
 
 main :: IO ()
-main = getArgs  >>= parse
+main = getArgs >>= parse

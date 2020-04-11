@@ -185,6 +185,7 @@ notInfNan s = not (isInfinite f || isNaN f)
 
 -- | Parallel strategy for evaluating multiple expressions
 parMapChunk :: Int -> (Expr (Regression Double) -> LA.Matrix Double) -> [Expr (Regression Double)] -> [LA.Matrix Double]
+parMapChunk 0 f xs = map f xs
 parMapChunk n f xs = concatMap (map f) (chunksOf n xs) `using` parList rdeepseq-- 
 --parMapChunk n f xs = map f xs `using` parListChunk n rpar -- rpar or rdeepseq
 
@@ -195,6 +196,7 @@ parMapChunk n f xs = concatMap (map f) (chunksOf n xs) `using` parList rdeepseq-
 --  run a Linear regression on the evaluated expressions
 --  Remove from the population any expression that leads to NaNs or Infs
 fitnessReg :: Int -> [[Regression Double]] -> Vector -> [Expr (Regression Double)] -> Population (Regression Double) RegStats
+fitnessReg nPop xss ys []       = []
 fitnessReg nPop xss ys exprs = let n  = nPop `div` (2*numCapabilities)
                                    zs = parMapChunk n (exprToMatrix xss) exprs
                                    ps = zipWith (regress ys) exprs zs

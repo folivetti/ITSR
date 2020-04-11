@@ -28,30 +28,39 @@ import IT.Random
 
 import Control.Monad.Extra (iterateM)
 
+import Control.Parallel.Strategies
 import Control.DeepSeq
+import Data.List.Split
+import GHC.Conc (numCapabilities)
 
 import Data.Sequence (Seq(..), (><))
 import qualified Data.Sequence as S
 -- ---------------------------------------------------------------------------
+--parMapChunk :: Int -> (Expr (Regression Double) -> LA.Matrix Double) -> [Expr (Regression Double)] -> [LA.Matrix Double]
+parMapChunk 0 f xs = map f xs
+parMapChunk n f xs = concatMap (map f) (chunksOf n xs) `using` parList rdeepseq
 
 -- * ITEA
 
 -- | Creates an infinite list of populations where the /i/-th 
 -- element corresponds to t he /i/-th generation.
 fi2pop :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Constraint a b -> Population a b -> Rnd [(Population a b, Population a b)]
-fi2pop f g h pop = let n  = length pop
+fi2pop f g h pop = let n        = length pop
                        (pf, pi) = splitPop h pop
                    in  iterateM (step f g h n) (pf, pi)
 
-splitPop constFun pop = splitPop' constFun pop ([],[])
-
-splitPop' _ [] (pf,pi) = (pf,pi)
-splitPop' constFun (p@(Sol e f s):pop) (pf, pi)
-    | c == 0    = splitPop' constFun pop (p:pf, pi)
-    | otherwise = splitPop' constFun pop (pf, p':pi)
+splitPop constFun pop = splitPop' cpop ([],[])
   where
-    c  = constFun p
-    p' = Sol e c s
+    cpop = map constFun' pop
+    n    = (length pop) `div` (2*numCapabilities)
+
+    constFun' (p@(Sol e f s)) = (c, p')
+      where c  = constFun p
+            p' = if c==0 then p else Sol e c s
+
+splitPop' [] (pf,pi) = (pf,pi)
+splitPop' ((0,p):pop) (pf, pi) =  splitPop' pop (p:pf, pi)
+splitPop' ((c,p):pop) (pf, pi) =  splitPop' pop (pf, p:pi)
     
 -- | Generate an Initial Population at Random
 initialPop :: Int                -- dimension
@@ -79,10 +88,11 @@ initialPop dim maxTerms nPop rndTerm fit = fit <$> initialPop' dim maxTerms nPop
 -- the same size as the original population.
 --
 tournament :: Population a b -> Int -> Rnd (Population a b)
-tournament p 0 = return [] 
-tournament p n = do pi <- chooseOne p
-                    p' <- tournament p (n-1)
-                    return $ pi:p' 
+tournament [] _ = return []
+tournament p 0  = return [] 
+tournament p n  = do pi <- chooseOne p
+                     p' <- tournament p (n-1)
+                     return $ pi:p' 
   where
     chooseOne :: Population a b -> Rnd (Solution a b)
     chooseOne p = do let n = length p
@@ -94,9 +104,8 @@ tournament p n = do pi <- chooseOne p
 step :: (NFData a, NFData b) => Mutation a -> Fitness a b -> Constraint a b -> Int -> (Population a b, Population a b) -> Rnd (Population a b, Population a b)
 step mutFun fitFun constFun nPop (pf, pi) = do
   exprs  <- sequence $ mutFun . _expr <$> (pf++pi)
-  let pop = fitFun exprs
+  let pop       = fitFun exprs
       (pf',pi') = splitPop constFun pop
   pf'' <- tournament (pf ++ pf') nPop
   pi'' <- tournament (pi ++ pi') nPop
   return (pf'', pi'')
-

@@ -91,7 +91,8 @@ samplePop nPop maxNTerms rndExpr = do n  <- sampleRng 1 maxNTerms
 
 -- | sample from [0,n]
 sampleTo :: Int -> Rnd Int
-sampleTo n = sampleRng 0 n
+sampleTo n | n < 0     = error "Invalid number"
+           | otherwise = sampleRng 0 n
 
 -- | Sample from a range of integers
 sampleRng :: Int -> Int -> Rnd Int

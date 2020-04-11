@@ -20,6 +20,7 @@ import Numeric.Interval
 
 import qualified Numeric.LinearAlgebra as LA
 import Control.Monad.State
+import Control.Applicative
 import System.Random.SplitMix
 import qualified MachineLearning as ML
 import Data.List.Split (splitOn)
@@ -174,29 +175,29 @@ getAllStats n p = map myfold (take n p)
     avg   (RS x1 x2 x3 x4 x5) (RS y1 y2 y3 y4 _) = RS (x1 + y1) (x2 + y2) (x3 + y3) (x4 + y4) x5
     getAvg (AS a1 a2 (RS x1 x2 x3 x4 x5))  n = AS  a1 a2 (RS (x1/n) (x2/n) (x3/n) (x4/n) x5)
 
-createIfDoesNotExist fname = do
+createIfDoesNotExist fname header = do
   isCreated <- doesFileExist fname
   h <- if   isCreated
        then openFile fname AppendMode
        else openFile fname WriteMode
-  if isCreated then hPutStrLn h "" else hPutStrLn h headReport
+  if isCreated then hPutStrLn h "" else hPutStrLn h header
   return h
 
-genReports :: Output -> [Population (Regression Double) RegStats] -> Int -> (Solution (Regression Double) RegStats -> RegStats) -> IO ()
-genReports Screen pop n fitTest = do
+genReports :: Output -> [Population (Regression Double) RegStats] -> Int -> (Solution (Regression Double) RegStats -> RegStats) -> [String] -> IO ()
+genReports Screen pop n fitTest _ = do
   let best = getBest n pop
   putStrLn "Best expression applied to the training set:\n"
   print best
   putStrLn "Best expression applied to the test set:\n"
   print (fitTest best)
   
-genReports (PartialLog dirname) pop n fitTest = do
+genReports (PartialLog dirname) pop n fitTest varnames = do
   createDirectoryIfMissing True dirname
   let fname    = dirname ++ "/stats.csv"
       exprName = dirname ++ "/exprs.csv"
   
-  hStats <- createIfDoesNotExist fname
-  hExpr  <- createIfDoesNotExist exprName
+  hStats <- createIfDoesNotExist fname headReport
+  hExpr  <- createIfDoesNotExist exprName ""
 
   let best = getBest n pop
   
@@ -206,18 +207,10 @@ genReports (PartialLog dirname) pop n fitTest = do
   t1 <- getTime Realtime
 
   let e = _expr best
-  --print "INTERVAL:"
-  --print $ checkInterval (repeat (1.0 ... 10.0)) (1 ... 10) e ((LA.toList._weights._stat) best)
-  --print $ sum $ evalExprToList (toInterval e) $ map Reg $ replicate 4 (-10.0 ... 10.0)
-  --print $ evalDiffExpr (toInterval e) (map Reg $ repeat (1.0 ... 5.0)) (repeat (singleton 1.0))
-  
-  --print $ evalWithAffine e (replicate 4 (-10.0 ... 10.0)) ((LA.toList._weights._stat) best)
-  --print $ evalDiffExprAff e (repeat (1.0 ... 5.0)) (repeat 1.0)
-  --print "END"
     
   let bestTest = fitTest best
-      stats = concat $ intersperse "," $ [dirname, show (sec t1 - sec t0)] ++ resultsToStr best bestTest      
-      exprsStr = exprsToStr best
+      stats    = concat $ intersperse "," $ [dirname, show (sec t1 - sec t0)] ++ resultsToStr best bestTest      
+      exprsStr = exprsToStr best varnames
   
   hPutStr hStats stats
   hPutStr hExpr  exprsStr
@@ -225,11 +218,11 @@ genReports (PartialLog dirname) pop n fitTest = do
   hClose hExpr
   putStrLn (replicate 100 '=')
 
-genReports (FullLog dirname) pop n fitTest = do
+genReports (FullLog dirname) pop n fitTest _ = do
   createDirectoryIfMissing True dirname
   let fname = dirname ++ "/stats.csv"
   
-  hStats <- createIfDoesNotExist fname
+  hStats <- createIfDoesNotExist fname headReport
 
   let best = getBest n pop
   
@@ -290,7 +283,7 @@ resultsToStr train stest = (map show statlist) -- ++ [exprWithWeight]
     statlist = [_rmse strain, _rmse stest, _mae strain, _mae stest, _nmse strain, _nmse stest, _r2 strain, _r2 stest]
 
 -- * Convert derivatives to a string compatible with the R test script
-exprsToStr sol = concat $ intersperse "," $ exprWithWeight : derivativesToStr sol
+exprsToStr sol varnames = replaceNames $ concat $ intersperse "," $ exprWithWeight : derivativesToStr sol
   where
     exprWithWeight     = w ++ " + " ++ exprWithoutBias
     exprWithoutBias    = intercalate " + " $ zipWith insertWeight ws (map show ts)
@@ -299,6 +292,10 @@ exprsToStr sol = concat $ intersperse "," $ exprWithWeight : derivativesToStr so
     ts       = getListOfTerms (_expr sol)
     (w:ws)   =  map show.LA.toList._weights._stat $ sol
 
+    replace old new = intercalate new . splitOn old
+    fs              = getZipList (ZipList (repeat replace) <*> ZipList ['x':show i | i <- [0..]] <*> ZipList varnames)
+    replaceNames e  = foldr ($) e fs
+    
 derivativesToStr :: Solution (Regression Double) RegStats -> [String]
 derivativesToStr sol = map (partialToStr (map show ws) (_expr sol)) [0 .. dim-1]
   where
