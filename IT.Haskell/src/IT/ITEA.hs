@@ -30,10 +30,6 @@ import Control.Monad.Extra (iterateM)
 
 import Control.DeepSeq
 
---import Data.Sequence (Seq(..), (><))
---import qualified Data.Sequence as S
-import Data.List
-
 -- ---------------------------------------------------------------------------
 
 -- * ITEA

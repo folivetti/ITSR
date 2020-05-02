@@ -1,4 +1,4 @@
-{-# LANGUAGE DatatypeContexts #-}
+--{-# LANGUAGE DatatypeContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeApplications #-}
@@ -16,11 +16,8 @@ Definitions of IT data structure and support functions.
 -}
 module IT.Regression where
 
-import Data.Coerce
-import Data.Foldable
 import Data.Semigroup
 
-import Control.Exception
 import GHC.Conc (numCapabilities)
 
 import IT
@@ -28,8 +25,6 @@ import IT.Algorithms
 
 import qualified Data.Vector.Storable as V
 import qualified Numeric.LinearAlgebra as LA
-
-import Data.List (foldl1', foldl')
 
 import Control.Parallel.Strategies
 import Control.DeepSeq
@@ -42,7 +37,8 @@ type Vector = LA.Vector Double
 -- | Regression problem will deal with inputs that are instances of 'Floating'
 -- This makes it possible to evaluate the expression with a vector of Double
 -- or a Vector of Intervals.
-newtype Floating a => Regression a = Reg {_unReg :: a}
+--Floating a => 
+newtype Regression a = Reg {_unReg :: a}
                          deriving (Num, Floating, Fractional)
 
 -- | Simply shows the packed 'Double'
@@ -60,9 +56,9 @@ instance (NFData a, Floating a) => NFData (Regression a) where
 instance Floating a => IT (Regression a) where
   itTimes xs (Strength is) = product $ zipWith pow xs is
     where
-      pow x i = if i<0
-                then recip (x^(abs i))
-                else x^i
+      pow (Reg x) i = if i<0
+                      then Reg (x**(fromIntegral i))  --  recip (x^(abs i))
+                      else Reg (x^i)
     
   -- we can use the Sum Monoid to add the terms
   itAdd   = itAddDefault Sum

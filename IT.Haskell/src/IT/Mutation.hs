@@ -14,11 +14,6 @@ import IT -- (itea, addTerm, dropTerm)
 import IT.Algorithms
 import IT.Random
 
-import Control.Monad.Extra (iterateM)
-
-import Data.Sequence (Seq(..), (><))
-import qualified Data.Sequence as S
-
 -- ---------------------------------------------------------------------------
 
 

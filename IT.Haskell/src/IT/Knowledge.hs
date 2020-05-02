@@ -16,7 +16,6 @@ Definitions of evaluation of regression expressions with Interval.
 module IT.Knowledge where
 
 import IT
-import IT.Algorithms
 import IT.Regression
 
 import Numeric.Interval
@@ -50,7 +49,10 @@ hasInf :: RealFloat a => IntervalReg a -> Bool
 hasInf x = any isInfinite [inf (_unReg x), sup (_unReg x)]
     
 protected :: RealFloat a => (IntervalReg a -> IntervalReg a) -> IntervalReg a -> IntervalReg a
-protected f x = if hasInf x then nanInterval else f x
+protected f x = checkValid replaceInf 
+  where
+    replaceInf   = if hasInf x then nanInterval else f x
+    checkValid (Reg y) = if sup y < inf y then Reg (sup y ... inf y) else Reg y
 
 -- | Check if one interval is inside the other
 feasible :: RealFloat a => Interval a -> Interval a -> Bool
@@ -85,8 +87,8 @@ evalDiffExpr (Expr ts) xs (w:ws) = foldr1 (zipWith (+)) wdtss
 applyDiff :: RealFloat a => (Transformation (IntervalReg a)) -> IntervalReg a -> Maybe (IntervalReg a)
 applyDiff (Transformation "sin" _) x      = Just ((protected cos) x)
 applyDiff (Transformation "cos" _) x      = Just (- ((protected sin) x))
-applyDiff (Transformation "tan" _) x      = Just ((recip . (^2) . (protected cos)) x)
-applyDiff (Transformation "tanh" _) x     = Just ((recip . (^2) . cosh) x)
+applyDiff (Transformation "tan" _) x      = Just (((**(-2)) . (protected cos)) x)
+applyDiff (Transformation "tanh" _) x     = Just (1 - (tanh x)^2)
 applyDiff (Transformation "sqrt" _) x     = Just ((recip . (*2) . sqrt) x)
 applyDiff (Transformation "sqrt.abs" f) x = Just (x / (2 * (abs x)**(1.5)))
 applyDiff (Transformation "log" _) x      = Just (recip x)

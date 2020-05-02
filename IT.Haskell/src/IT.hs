@@ -17,10 +17,7 @@ import Data.Coerce
 import Data.Foldable
 import Data.Semigroup
 
-import System.Random
-import Control.Monad.State
 import Data.List (intercalate, nub)
-import qualified Numeric.LinearAlgebra as V
 
 -- * IT expression definitions
 -- An IT expression  is a set of additive terms (with optional weighting)
@@ -140,3 +137,5 @@ numberOfTerms (Expr ts) = length ts
 
 getDimension (Expr ts) = getDim (head ts)
   where getDim (Term _ (Strength is)) = length is
+
+getInteractions (Term _ (Strength is)) = is

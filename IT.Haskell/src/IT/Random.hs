@@ -17,8 +17,6 @@ import IT
 import System.Random
 import System.Random.SplitMix
 import Control.Monad.State
-import Data.List (intercalate)
-
 
 -- * Random expressions generation
  

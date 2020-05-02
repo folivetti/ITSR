@@ -17,8 +17,6 @@ import IT.Random
 
 import Control.DeepSeq
 
-import Data.Sequence (Seq(..))
-
 -- | data type containing a solution and some necessary stats
 --  'a' refers to the type of 'Expr', 'b' refers to a container of statistics.
 data Solution a b = Sol { _expr :: Expr a   -- ^ The IT expression of type a

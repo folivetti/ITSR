@@ -8,25 +8,16 @@ import System.IO
 import System.Clock
 
 import IT
-import IT.ITEA
 import IT.Algorithms
 import IT.Mutation
 import IT.Regression
 import IT.Random
-import IT.Knowledge
-import IT.Affine
-
-import Numeric.Interval
 
 import qualified Numeric.LinearAlgebra as LA
 import Control.Monad.State
-import System.Random.SplitMix
 import qualified MachineLearning as ML
 import Data.List.Split (splitOn)
-import Data.List (intersperse, foldl')
-
-import Control.Parallel.Strategies
-import Control.DeepSeq
+import Data.List (intersperse)
 
 -- | Configuration Validation
 class Monoid a => Valid a b | a -> b, b -> a where

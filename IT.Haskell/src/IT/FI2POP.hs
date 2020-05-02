@@ -29,12 +29,9 @@ import IT.Random
 import Control.Monad.Extra (iterateM)
 
 import Control.Parallel.Strategies
-import Control.DeepSeq
 import Data.List.Split
 import GHC.Conc (numCapabilities)
 
-import Data.Sequence (Seq(..), (><))
-import qualified Data.Sequence as S
 -- ---------------------------------------------------------------------------
 --parMapChunk :: Int -> (Expr (Regression Double) -> LA.Matrix Double) -> [Expr (Regression Double)] -> [LA.Matrix Double]
 parMapChunk 0 f xs = map f xs

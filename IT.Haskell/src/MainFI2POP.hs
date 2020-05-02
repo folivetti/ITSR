@@ -37,7 +37,7 @@ readConfig fname useSlice = do
     tfuncs             = getSetting cp "Mutation"  "transfunctions"
     trainname          = getSetting cp "Dataset"   "train"
     testname           = getSetting cp "Dataset"   "test"
-    nPop               = getSetting cp "Algorithm" "npop"
+    --nPop               = getSetting cp "Algorithm" "npop"
     nGens              = getSetting cp "Algorithm" "ngens"
     log                = getSetting cp "Algorithm" "log"
     cdm                = getSetting cp "Knowledge" "codomain"
@@ -61,7 +61,9 @@ readConfig fname useSlice = do
              <> (domains . map tuple2interval) dm
              
   f <- readFile trainname
-  runFI2POPReg datasetCfg mutCfg constCfg log nPop nGens useSlice varnames
+  putStrLn trainname
+  runFI2POPReg datasetCfg mutCfg constCfg log 10000 nGens useSlice varnames
+  --runFI2POPReg datasetCfg mutCfg constCfg log nPop nGens useSlice varnames
 
 parse :: [String] -> IO  ()
 parse [fname, useSlice] = readConfig fname (read useSlice)

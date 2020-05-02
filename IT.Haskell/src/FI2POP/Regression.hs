@@ -25,10 +25,12 @@ import Control.Monad.State
 import System.Random.SplitMix
 import Numeric.Interval
 
-import Data.List (foldl')
-
 
 -- | slices the domain
+
+safeHull x y | x==empty || y==empty = empty
+             | otherwise            = hull x y
+
 sliceDomains :: [(Interval Double)] -> Double -> Int -> [[(Interval Double)]]
 sliceDomains domains max_width max_depth = sequence $ map sliceSingleDomain domains
   where
@@ -52,8 +54,8 @@ constraintFunSliced slices codomain diffCodomains (Sol e f s)
         calcDiffDomains ds = evalDiffExpr e' (map Reg $ ds) ws'
         calcDomains        = exprInterval ws . termIntervals e
                 
-        merge        = foldr hull empty
-        mergeDiff xs = foldr (zipWith hull) (repeat empty) xs
+        merge        = foldr1 safeHull
+        mergeDiff xs = foldr1 (zipWith safeHull) xs
 
         diffDomains = mergeDiff $ map (map _unReg . calcDiffDomains) slices 
         funDomains  = merge $ map calcDomains slices
@@ -63,7 +65,7 @@ constraintFunSliced slices codomain diffCodomains (Sol e f s)
         
         violated    = filter not (inDomain:inDiffs)
     in  fromIntegral $ length violated + length (filter (==empty) (funDomains:diffDomains))
-    
+       
 -- | creates the constraint evaluation function
 
 constraintFun :: [(Interval Double)] 
@@ -79,7 +81,7 @@ constraintFun domain codomain diffcodomains (Sol e f s)
         calcDomains = exprInterval ws . termIntervals e
         violated    = filter not (inDomain : inDiffs)
     in  fromIntegral $ length violated + length (filter (==empty) (calcDomains domain:diffdomains))
-    
+        
 runFI2POPReg :: Datasets -> MutationCfg -> ConstraintsCfg -> Output ->  Int -> Int -> Bool -> [String] -> IO ()
 runFI2POPReg (D tr te) mcfg (C ds cd cds) output nPop nGens useSlice varnames = do
   g <- initSMGen
@@ -91,19 +93,36 @@ runFI2POPReg (D tr te) mcfg (C ds cd cds) output nPop nGens useSlice varnames = 
       dim      = LA.cols trainX
       (mutFun, rndTerm)   = withMutation mcfg dim
       
-      slices   = sliceDomains ds 0.4 2
+      slices   = sliceDomains ds 0.1 2
+      ds'      = foldr1 (\x y -> zipWith safeHull x y) slices
 
   let constFun = if   useSlice
                  then slices `seq` constraintFunSliced slices cd cds
                  else constraintFun ds cd cds
+
+      constFun1 = constraintFun ds cd cds
+      constFun2 = constraintFunSliced slices cd cds
       
       p0       = initialPop dim (getMaxTerms mcfg) nPop rndTerm fitTrain
+      
+      p0'      = p0 `evalState` g
+      cps      = map (\pi -> (constFun1 pi, constFun2 pi, _expr pi)) p0'
+      diff     = filter (\(c1,c2,_) -> c1/=c2) cps
+      display (c1,c2,e) = putStrLn $ show c1 ++ " \t " ++ show c2 ++ " \t " ++ show e
+      ratio    = (fromIntegral.length) diff / (fromIntegral.length) p0'
+      withZero = filter (\(c1,c2,_) -> c1==0 || c2==0) diff
+      ratio2   = (fromIntegral.length) withZero / (fromIntegral.length) p0'
       
       gens     = (p0 >>= fi2pop mutFun fitTrain constFun) `evalState` g
       feas     = map fst gens
       infeas   = map snd gens
       best     = getBest nGens feas
-  print (length slices)    
-  genReports output feas nGens fitTest varnames
-  
+      
 
+  putStrLn $ "Does the union of sliced domains equal the original domains? " ++ show (ds==ds')
+  putStrLn $ "Number of slices: " ++ show (length slices)
+  putStrLn "whole \t sliced \t expr"
+  mapM_ display withZero
+  putStrLn $ "Ratio:" ++ show (length diff) ++ "/" ++ show (length p0') ++ " = " ++ show ratio
+  putStrLn $ "Ratio (feas x infeas):" ++ show (length withZero) ++ "/" ++ show (length p0') ++ " = " ++ show ratio2
+  --genReports output feas nGens fitTest varnames

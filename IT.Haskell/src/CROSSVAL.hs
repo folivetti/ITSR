@@ -11,7 +11,6 @@ Hyperparameter tuning for ITEA
 -}
 module Main where
 
-import ITEA.Regression
 import ITEA.Config
 import IT.ITEA
 import IT.Regression

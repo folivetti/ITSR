@@ -1,0 +1,14 @@
+datasets/knowledge/RocketFuel/RocketFuel_train.csv
+Does the union of sliced domains equal the original domains? True
+Number of slices: 64
+whole 	 sliced 	 expr
+1.0 	 0.0 	 sqrt(x1^(3)) + sin(x1^(2))
+1.0 	 0.0 	 id(x2^(-2)) + sin(x1^(3)) + exp(x1)
+1.0 	 0.0 	 id(x1^(2)) + sin(x1^(3))
+1.0 	 0.0 	 sin(x1^(3)) + sqrt.abs(x1^(2))
+1.0 	 0.0 	 sin(x1^(2)) + cos(x1)
+1.0 	 0.0 	 cos(x1^(2)) + tanh(x1^(-1))
+1.0 	 0.0 	 sqrt(x2^(-3)) + sin(x1^(3)) + id(x1^(2))
+1.0 	 0.0 	 cos(x1^(2)) + tanh(x1^(-1))
+Ratio:86/9304 = 9.243336199484092e-3
+Ratio (feas x infeas):8/9304 = 8.598452278589854e-4
