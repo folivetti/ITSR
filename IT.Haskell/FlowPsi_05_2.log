@@ -1,7 +1,0 @@
-datasets/knowledge/FlowPsi/FlowPsi_train.csv
-Does the union of sliced domains equal the original domains? True
-Number of slices: 128
-whole 	 sliced 	 expr
-1.0 	 0.0 	 tanh(x1^(2)*x4^(-1)) + log(x4^(3))
-Ratio:61/9285 = 6.569736133548734e-3
-Ratio (feas x infeas):1/9285 = 1.0770059235325795e-4

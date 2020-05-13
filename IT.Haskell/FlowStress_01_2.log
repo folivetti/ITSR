@@ -1,6 +1,0 @@
-datasets/knowledge/FlowStress/FlowStress_train.csv
-Does the union of sliced domains equal the original domains? True
-Number of slices: 64
-whole 	 sliced 	 expr
-Ratio:174/5124 = 3.395784543325527e-2
-Ratio (feas x infeas):0/5124 = 0.0

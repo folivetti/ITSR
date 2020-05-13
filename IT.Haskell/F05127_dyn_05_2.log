@@ -1,6 +1,0 @@
-datasets/knowledge/F05128/F05128_dyn_train.csv
-Does the union of sliced domains equal the original domains? True
-Number of slices: 64
-whole 	 sliced 	 expr
-Ratio:88/9178 = 9.588145565482676e-3
-Ratio (feas x infeas):0/9178 = 0.0

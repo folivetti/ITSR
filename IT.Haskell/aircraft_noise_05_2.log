@@ -1,6 +1,0 @@
-datasets/knowledge/aircraft/Aircraft_noise_train.csv
-Does the union of sliced domains equal the original domains? True
-Number of slices: 1024
-whole 	 sliced 	 expr
-Ratio:355/9484 = 3.7431463517503163e-2
-Ratio (feas x infeas):0/9484 = 0.0
